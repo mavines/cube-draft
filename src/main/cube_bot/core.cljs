@@ -26,7 +26,7 @@
       (.get user-id)
       (.send text)))
 
-(defn send-pack [seat]
+(defn send-pack! [seat]
   (let [user-id (get-in seat [:player :id])
         pack (first (:packs seat))
         pack-string (str/join "\n" (map #(str %1 " - " %2) (range (count pack)) pack))]
@@ -48,7 +48,7 @@
   (println "Starting draft: " user-ids)
   (let [draft (build-draft cube/combo user-ids)]
     (reset! *draft draft)
-    (mapv send-pack (:seats @*draft))))
+    (mapv send-pack! (:seats @*draft))))
 
 (defn players-seat [draft user-id]
   (first (filter #(= user-id (get-in % [:player :id]))
@@ -91,9 +91,24 @@
                           (update :seats swap-seat updated-next-seat))]
     updated-draft))
 
+(defn send-next-pack? [draft picking-user]
+  (let [picking-seat (players-seat draft picking-user)]
+    (< 0 (count (:packs picking-seat)))))
+
+(defn send-neighbor-pack? [draft picking-user]
+  (let [next-seat (next-seat draft picking-user)]
+    (= 1 (count (:packs next-seat)))))
+
+(defn send-picks [draft picking-user]
+  (when (send-next-pack? draft picking-user)
+    (send-pack! (players-seat draft picking-user)))
+  (when (send-neighbor-pack? draft picking-user)
+    (send-pack! (next-seat draft picking-user))))
+
 (defn handle-pick! [user-id pick-number]
   (let [draft-update (perform-pick @*draft user-id pick-number)]
-    (reset! *draft draft-update)))
+    (reset! *draft draft-update)
+    (send-picks draft-update user-id)))
 
 (defn handle-command [^js message]
   (let [body (.-content message)
@@ -103,7 +118,7 @@
         args (rest command-list)]
     (condp = command
       "newdraft" (start-draft! (.. message -mentions -users keyArray))
-      "pick" (handle-pick! (.. message -author -id) (first args)))))
+      "pick" (handle-pick! (.. message -author -id) (js/parseInt (first args))))))
 
 ;; Handle messages
 (defn message-handler [^js message]

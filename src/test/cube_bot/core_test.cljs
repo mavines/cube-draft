@@ -51,3 +51,14 @@
     (is (= 14 (-> second-seat :packs first count)))
     (is (= 1 (-> first-seat :player :picks count)))
     (is (= 1 (-> second-seat :player :picks count)))))
+
+(deftest send-next-pack?-test
+  (let [picked-draft (core/perform-pick small-draft 123 0)]
+    (is (not (core/send-next-pack? picked-draft 123)))))
+
+(deftest send-neighbor-pack?-test
+  (let [picked-draft (core/perform-pick small-draft 123 0)
+        picked-back (core/perform-pick picked-draft 456 0)]
+    (is (not (core/send-neighbor-pack? picked-draft 123)))
+    (is (core/send-next-pack? picked-back 456))
+    (is (core/send-neighbor-pack? picked-back 456))))

@@ -7,6 +7,9 @@
 
 (defn jsprint [js]
   (.log js/console js))
+(defn drop-nth [n coll]
+  (keep-indexed #(if (not= %1 n) %2) coll))
+
 (defonce prefix "[]")
 (defonce *client (atom nil))
 (defonce *debug-message (atom nil))
@@ -38,14 +41,52 @@
 (defn start-draft [user-ids]
   (println "Starting draft: " user-ids)
   (let [packs (partition 15 cube/combo)
-        seats (map build-seat user-ids packs)]
+        seats (mapv build-seat user-ids packs)]
     (reset! *draft {:pack-number 1
                     :remaining-packs (drop (count user-ids) packs)
                     :seats seats})
     (mapv send-pack (:seats @*draft))))
 
-(defn pick-card [userId cardNumber]
-  (println "Picking card: " userId " - " cardNumber))
+(defn players-seat [user-id]
+  (first (filter #(= user-id (get-in % [:player :id]))
+                 (:seats @*draft))))
+
+(defn seat->player-id [seat]
+  (get-in seat [:player :id]))
+
+(defn player-id->seat-idx [user-id seats]
+  (let [ids (mapv seat->player-id seats)]
+    (.indexOf ids user-id)))
+
+(defn next-seat [user-id]
+  (let [seats (:seats @*draft)
+        ids (mapv seat->player-id seats)
+        seat-idx (.indexOf ids user-id)
+        next-seat-idx (if (= seat-idx (dec (count ids)))
+                        0
+                        (inc seat-idx))]
+    (get seats next-seat-idx)))
+
+(defn swap-seat [seats updated-seat]
+  (let [user-id (seat->player-id updated-seat)
+        seat-idx (player-id->seat-idx user-id seats)]
+    (assoc-in seats [seat-idx] updated-seat)))
+
+(defn pick-card [user-id pick-number]
+  (let [seat (players-seat user-id)
+        player (:player seat)
+        pack (first (:packs seat))
+        pick (nth pack pick-number)
+        picked-pack (remove #(= pick %) pack)
+        next-seat (next-seat user-id)
+        updated-seat (-> seat
+                         (update :packs rest)
+                         (update :picks conj pick))
+        updated-next-seat (update next-seat :packs conj picked-pack)
+        updated-draft (-> @*draft
+                          (update :seats swap-seat updated-seat)
+                          (update :seats swap-seat updated-next-seat))]
+    (reset! *draft updated-draft)))
 
 (defn handle-command [^js message]
   (let [body (.-content message)

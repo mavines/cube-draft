@@ -1,29 +1,24 @@
-(ns core
+(ns cube-bot.core
   (:require ["discord.js" :as Discord]
-            [config]))
+            [clojure.string :as str]
+            [cube-bot.config :as config]))
 
 
-(def client
-  "New instance of client, notice the last `.`"
-  (Discord/Client.))
+(defonce *client (atom nil))
 
+(defonce prefix "[]")
 
-;; Send login message and set activity
-(defn login-message []
-  (println "The bot is online.")
-  ;; TODO: change the activity of the bot
-  (.setActivity (.-user client) "Doin' random stuff")
-  (-> client
-      (.-channels)
-      (.get config/general-chat-id)
-      ;; TODO: message when the bot logs into a server
-      (.send "How do you do me hearties.")))
-
+(defn handle-command [command]
+  (println command))
 
 ;; Handle messages
-(defn message-handler [message]
-  ;; Ignore message if author is the client
-  (if-not (= (.-author message) (.-user client))
+(defn message-handler [^js message]
+  (let [body (.-content message)]
+    (when (and (not (.. message -author -bot))
+             (str/starts-with? body prefix))
+      (handle-command (subs body (count prefix)))))
+
+  #_(if-not (= (.-author message) (.-user client))
     (cond
     ;; Mentioned
     ;; TODO: change the message when someone mentions the bot.
@@ -44,8 +39,17 @@
                 (.-channel)
                 (.send "Just reading...")))))
 
+(defn connect []
+  (reset! *client (Discord/Client.))
+  (.on ^js @*client "message" message-handler)
+  (.login ^js @*client config/token))
+
+(defn ^:dev/after-load reload! []
+  (js/console.log "Code Reloaded")
+  (.destroy ^js @*client)
+  (connect))
+
 
 (defn -main []
-  (.on client "ready" login-message)
-  (.on client "message" message-handler)
-  (.login client config/token))
+  (print "MAIN")
+  (connect))

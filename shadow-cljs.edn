@@ -10,4 +10,5 @@
  :builds
  {:app {:target :node-script
         :output-to "target/main.js"
-        :main core/-main}}}
+        :main cube-bot.core/-main
+        :devtools {:after-load cube-bot.core/reload!}}}}

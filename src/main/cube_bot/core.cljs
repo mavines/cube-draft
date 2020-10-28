@@ -14,8 +14,7 @@
 (defonce *client (atom nil))
 (defonce *debug-message (atom nil))
 
-;; {:cube [current cards]
-;;  :pack-number 1
+;; {:pack-number 1
 ;;  :remaining-packs [[cards in pack]]
 ;;  :seats [
 ;;    {:player {:id user-id :picks [card picks]
@@ -38,18 +37,22 @@
   {:player {:id user-id :picks []}
    :packs [pack]})
 
-(defn start-draft [user-ids]
-  (println "Starting draft: " user-ids)
-  (let [packs (partition 15 cube/combo)
+(defn build-draft [cube user-ids]
+  (let [packs (partition 15 cube)
         seats (mapv build-seat user-ids packs)]
-    (reset! *draft {:pack-number 1
-                    :remaining-packs (drop (count user-ids) packs)
-                    :seats seats})
+    {:pack-number 1
+     :remaining-packs (drop (count user-ids) packs)
+     :seats seats}))
+
+(defn start-draft! [user-ids]
+  (println "Starting draft: " user-ids)
+  (let [draft (build-draft cube/combo user-ids)]
+    (reset! *draft draft)
     (mapv send-pack (:seats @*draft))))
 
-(defn players-seat [user-id]
+(defn players-seat [draft user-id]
   (first (filter #(= user-id (get-in % [:player :id]))
-                 (:seats @*draft))))
+                 (:seats draft))))
 
 (defn seat->player-id [seat]
   (get-in seat [:player :id]))
@@ -58,8 +61,8 @@
   (let [ids (mapv seat->player-id seats)]
     (.indexOf ids user-id)))
 
-(defn next-seat [user-id]
-  (let [seats (:seats @*draft)
+(defn next-seat [draft user-id]
+  (let [seats (:seats draft)
         ids (mapv seat->player-id seats)
         seat-idx (.indexOf ids user-id)
         next-seat-idx (if (= seat-idx (dec (count ids)))
@@ -72,21 +75,25 @@
         seat-idx (player-id->seat-idx user-id seats)]
     (assoc-in seats [seat-idx] updated-seat)))
 
-(defn pick-card [user-id pick-number]
-  (let [seat (players-seat user-id)
+(defn perform-pick [draft user-id pick-number]
+  (let [seat (players-seat draft user-id)
         player (:player seat)
         pack (first (:packs seat))
         pick (nth pack pick-number)
         picked-pack (remove #(= pick %) pack)
-        next-seat (next-seat user-id)
+        next-seat (next-seat draft user-id)
         updated-seat (-> seat
                          (update :packs rest)
-                         (update :picks conj pick))
+                         (update-in [:player :picks] conj pick))
         updated-next-seat (update next-seat :packs conj picked-pack)
-        updated-draft (-> @*draft
+        updated-draft (-> draft
                           (update :seats swap-seat updated-seat)
                           (update :seats swap-seat updated-next-seat))]
-    (reset! *draft updated-draft)))
+    updated-draft))
+
+(defn handle-pick! [user-id pick-number]
+  (let [draft-update (perform-pick @*draft user-id pick-number)]
+    (reset! *draft draft-update)))
 
 (defn handle-command [^js message]
   (let [body (.-content message)
@@ -95,8 +102,8 @@
         command (first command-list)
         args (rest command-list)]
     (condp = command
-      "newdraft" (start-draft (.. message -mentions -users keyArray))
-      "pick" (pick-card (.. message -author -id) (first args)))))
+      "newdraft" (start-draft! (.. message -mentions -users keyArray))
+      "pick" (handle-pick! (.. message -author -id) (first args)))))
 
 ;; Handle messages
 (defn message-handler [^js message]

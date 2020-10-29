@@ -8,12 +8,16 @@
   {:player {:id user-id :picks []}
    :packs [pack]})
 
-(defn build-draft [cube user-ids]
-  (let [packs (partition 15 cube)
-        seats (mapv build-seat user-ids packs)]
-    {:pack-number 1
-     :remaining-packs (drop (count user-ids) packs)
-     :seats seats}))
+(defn build-draft
+  ([cube user-ids] (build-draft cube user-ids 15 3))
+  ([cube user-ids pack-size num-packs]
+   (let [player-count (count user-ids)
+         packs (take (* num-packs player-count) (partition pack-size cube))
+         seats (mapv build-seat user-ids packs)]
+     {:pack-number 1
+      :num-packs num-packs
+      :remaining-packs (drop player-count packs)
+      :seats seats})))
 
 (defn players-seat [draft user-id]
   (first (filter #(= user-id (get-in % [:player :id]))
@@ -56,11 +60,9 @@
      :content pack-string}))
 
 (defn pick-results [draft picking-user]
-  (let [player-message (when (send-next-pack? draft picking-user)
-                         (build-pack-message (players-seat draft picking-user)))
-        neighbor-message (when (send-neighbor-pack? draft picking-user)
-                           (build-pack-message (next-seat draft picking-user)))]
-    (remove nil? [player-message neighbor-message])))
+  (cond-> []
+    (send-next-pack? draft picking-user) (conj (build-pack-message (players-seat draft picking-user)))
+    (send-neighbor-pack? draft picking-user) (conj (build-pack-message (next-seat draft picking-user)))))
 
 (defn perform-pick [draft user-id pick-number]
   (let [seat (players-seat draft user-id)
@@ -72,7 +74,8 @@
         updated-seat (-> seat
                          (update :packs rest)
                          (update-in [:player :picks] conj pick))
-        updated-next-seat (update next-seat :packs conj picked-pack)
+        updated-next-seat (update next-seat :packs
+                                  #(cond-> % (not-empty picked-pack) (conj picked-pack)))
         updated-draft (-> draft
                           (update :seats swap-seat updated-seat)
                           (update :seats swap-seat updated-next-seat))

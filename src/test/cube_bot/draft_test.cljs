@@ -1,0 +1,124 @@
+(ns cube-bot.draft-test
+  (:require [cljs.test :refer-macros [is are deftest testing use-fixtures async]]
+            [clojure.pprint :refer [pprint]]
+            [cube-bot.cube :as cube]
+            [cube-bot.draft :as draft]))
+
+(defonce tiny-draft (draft/build-draft cube/combo [123 456 789] 1 2))
+
+(defonce small-cube (take 33 cube/combo))
+(defonce small-draft (draft/build-draft small-cube [123 456]))
+
+(defonce medium-cube (take 86 cube/combo))
+(defonce medium-draft (draft/build-draft medium-cube [123 456 789]))
+
+(deftest build-seat-test
+  (let [pack (take 15 small-cube)
+        seat (draft/build-seat 123 pack)]
+    (is (= {:id 123 :picks []}
+           (:player seat)))
+    (is (= pack
+           (first (:packs seat))))
+    (is (= 1 (count (:packs seat))))))
+
+(deftest build-draft-test
+  (let [draft (draft/build-draft small-cube [123 456])
+        first-seat (first (:seats draft))]
+    (is (= 2 (count (:seats draft))))
+    (is (= {:id 123 :picks []}
+           (:player first-seat)))
+    (is (= 15 (count (first (:packs first-seat)))))
+    (is (not= (first (:packs first-seat))
+              (first (:packs (second (:seats draft))))))))
+
+(deftest pick-card-test
+  ;; User 123 picks card 0
+  (let [after-pick (:draft (draft/perform-pick small-draft 123 0))
+        seats (:seats after-pick)
+        first-seat (first seats)
+        second-seat (second seats)]
+    (is (= 0 (count (:packs first-seat))))
+    (is (= 2 (count (:packs second-seat))))
+    (is (= 14 (-> second-seat :packs second count)))
+    (is (= 1 (-> first-seat :player :picks count)))))
+
+(deftest two-pick-card-test
+  ;; User 123 picks card 0
+  (let [after-picks (-> small-draft
+                        (draft/perform-pick 123 0)
+                        :draft
+                        (draft/perform-pick 456 3)
+                        :draft)
+        seats (:seats after-picks)
+        first-seat (first seats)
+        second-seat (second seats)]
+    (is (= 1 (count (:packs first-seat))))
+    (is (= 1 (count (:packs second-seat))))
+    (is (= 14 (-> first-seat :packs first count)))
+    (is (= 14 (-> second-seat :packs first count)))
+    (is (= 1 (-> first-seat :player :picks count)))
+    (is (= 1 (-> second-seat :player :picks count)))))
+
+(deftest send-next-pack?-test
+  (let [picked-draft (:draft (draft/perform-pick small-draft 123 0))]
+    (is (not (draft/send-next-pack? picked-draft 123)))))
+
+(deftest send-neighbor-pack?-test
+  (let [picked-draft (:draft (draft/perform-pick small-draft 123 0))
+        picked-back (:draft (draft/perform-pick picked-draft 456 0))]
+    (is (not (draft/send-neighbor-pack? picked-draft 123)))
+    (is (draft/send-next-pack? picked-back 456))
+    (is (draft/send-neighbor-pack? picked-back 456))))
+
+
+(deftest pick-results-test
+  (let [picked-draft (:draft (draft/perform-pick small-draft 123 0))
+        {:keys [draft messages]} (draft/perform-pick picked-draft 456 0)
+        expected-result [{:type :dm
+                          :user-id 456
+                          :content (draft/pack->text (rest (first (partition 15 small-cube))))}
+                         {:type :dm
+                          :user-id 123
+                          :content (draft/pack->text (rest (second (partition 15 small-cube))))}]]
+    (is (= expected-result messages))))
+
+;; 3 players
+;; Player 1 picks - no messages
+;; Player 2 picks - message to 2
+;; Player 3 picks - message to 3 and 1
+(deftest pick-results-test-3player
+  (let [one-pick-draft (:draft (draft/perform-pick medium-draft 123 0))
+        two-pick-draft (:draft (draft/perform-pick one-pick-draft 456 0))
+        {:keys [draft messages]}(draft/perform-pick two-pick-draft 789 0)
+        expected-result [{:type :dm
+                          :user-id 789
+                          :content (draft/pack->text (rest (second (partition 15 medium-cube))))}
+                         {:type :dm
+                          :user-id 123
+                          :content (draft/pack->text (rest (nth (partition 15 medium-cube) 2)))}]]
+    (is (= expected-result messages))))
+
+
+(deftest last-pick-test
+  (let [empty-draft (-> tiny-draft
+                        (draft/perform-pick 123 0)
+                        :draft
+                        (draft/perform-pick 456 0)
+                        :draft)
+        first-player-packs (-> empty-draft :seats first :packs)
+        second-player-packs (-> empty-draft :seats second :packs)]
+    (is (empty? first-player-packs))
+    (is (empty? second-player-packs))))
+
+(deftest progress-pack-test
+  (let [pack-2-draft (-> tiny-draft
+                        (draft/perform-pick 123 0)
+                        :draft
+                        (draft/perform-pick 456 0)
+                        :draft
+                        (draft/perform-pick 789 0)
+                        :draft)
+        first-player-packs (-> pack-2-draft :seats first :packs)
+        second-player-packs (-> pack-2-draft :seats second :packs)
+        third-player-packs (-> pack-2-draft :seats (nth 2) :packs)]
+    (is (= 2 (:pack-number pack-2-draft)))))

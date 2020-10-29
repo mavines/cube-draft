@@ -4,12 +4,8 @@
             [clojure.pprint :refer [pprint]]
             [cube-bot.config :as config]
             [cube-bot.cube :as cube]
-            [cube-bot.draft :as draft]))
-
-(defn jsprint [js]
-  (.log js/console js))
-(defn drop-nth [n coll]
-  (keep-indexed #(if (not= %1 n) %2) coll))
+            [cube-bot.draft :as draft]
+            [cube-bot.util :as util :refer [jsprint drop-nth]]))
 
 (defonce prefix "[]")
 (defonce *client (atom nil))
@@ -44,11 +40,13 @@
                  :content pack-string}]
     (send-message! message)))
 
-(defn start-draft! [user-ids]
-  (println "Starting draft: " user-ids)
-  (let [draft (draft/build-draft cube/combo user-ids)]
-    (reset! *draft draft)
-    (mapv send-pack! (:seats @*draft))))
+(defn start-draft!
+  ([cube-id user-ids] (start-draft! cube-id user-ids 15 3))
+  ([cube-id user-ids pack-size num-packs]
+   (println "Starting draft: " user-ids)
+   (let [draft (draft/build-draft cube/combo user-ids pack-size num-packs)]
+     (reset! *draft draft)
+     (mapv send-pack! (:seats @*draft)))))
 
 (defn handle-pick! [user-id pick-number]
   (let [{:keys [draft messages]} (draft/perform-pick @*draft user-id pick-number)]
@@ -62,7 +60,7 @@
         command (first command-list)
         args (rest command-list)]
     (condp = command
-      "newdraft" (start-draft! (.. message -mentions -users keyArray))
+      "newdraft" (start-draft! 0 (.. message -mentions -users keyArray))
       "pick" (handle-pick! (.. message -author -id) (js/parseInt (first args))))))
 
 ;; Handle messages

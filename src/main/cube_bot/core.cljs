@@ -26,10 +26,13 @@
       (.get user-id)
       (.send text)))
 
+(defn pack->text [pack]
+  (str/join "\n" (map #(str %1 " - " %2) (range (count pack)) pack)))
+
 (defn send-pack! [seat]
   (let [user-id (get-in seat [:player :id])
         pack (first (:packs seat))
-        pack-string (str/join "\n" (map #(str %1 " - " %2) (range (count pack)) pack))]
+        pack-string (pack->text pack)]
     (println pack-string)
     (send-dm! user-id pack-string)))
 
@@ -65,9 +68,7 @@
   (let [seats (:seats draft)
         ids (mapv seat->player-id seats)
         seat-idx (.indexOf ids user-id)
-        next-seat-idx (if (= seat-idx (dec (count ids)))
-                        0
-                        (inc seat-idx))]
+        next-seat-idx (mod (inc seat-idx) (count ids))]
     (get seats next-seat-idx)))
 
 (defn swap-seat [seats updated-seat]
@@ -100,17 +101,35 @@
     (= 1 (count (:packs next-seat)))))
 
 (defn send-picks [draft picking-user]
-  (when (send-next-pack? draft picking-user)
-    (send-pack! (players-seat draft picking-user)))
-  (when (send-neighbor-pack? draft picking-user)
-    (send-pack! (next-seat draft picking-user))))
+  )
+
+(defn build-pack-message [seat]
+  (let [user-id (get-in seat [:player :id])
+        pack (first (:packs seat))
+        pack-string (pack->text pack)]
+    {:command :dm
+     :user-id user-id
+     :message pack-string}))
+
+
+(defn pick-results [draft picking-user]
+  (let [player-message (when (send-next-pack? draft picking-user)
+                         (build-pack-message (players-seat draft picking-user)))
+        neighbor-message (when (send-neighbor-pack? draft picking-user)
+                           (build-pack-message (next-seat draft picking-user)))]
+    (remove nil? [player-message neighbor-message])))
+
+(defn send! [messages]
+  )
 
 (defn handle-pick! [user-id pick-number]
-  (let [draft-update (perform-pick @*draft user-id pick-number)]
+  (let [draft-update (perform-pick @*draft user-id pick-number)
+        results (pick-results draft-update user-id)]
     (reset! *draft draft-update)
+
     (send-picks draft-update user-id)))
 
-(defn handle-command [^js message]
+(defn handle-command! [^js message]
   (let [body (.-content message)
         command-string (subs body (count prefix))
         command-list (str/split command-string " ")
@@ -126,7 +145,7 @@
   (let [body (.-content message)]
     (when (and (not (.. message -author -bot))
              (str/starts-with? body prefix))
-      (handle-command message )))
+      (handle-command! message )))
 
   #_(if-not (= (.-author message) (.-user client))
     (cond

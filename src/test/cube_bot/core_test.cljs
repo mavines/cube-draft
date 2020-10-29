@@ -2,17 +2,18 @@
   (:require [cljs.test :refer-macros [is are deftest testing use-fixtures async]]
             [clojure.pprint :refer [pprint]]
             [cube-bot.core :as core]
-            [cube-bot.cube :as cube]))
+            [cube-bot.cube :as cube]
+            [cube-bot.draft :as draft]))
 
 (defonce small-cube (take 33 cube/combo))
-(defonce small-draft (core/build-draft small-cube [123 456]))
+(defonce small-draft (draft/build-draft small-cube [123 456]))
 
 (defonce medium-cube (take 86 cube/combo))
-(defonce medium-draft (core/build-draft medium-cube [123 456 789]))
+(defonce medium-draft (draft/build-draft medium-cube [123 456 789]))
 
 (deftest build-seat-test
   (let [pack (take 15 small-cube)
-        seat (core/build-seat 123 pack)]
+        seat (draft/build-seat 123 pack)]
     (is (= {:id 123 :picks []}
            (:player seat)))
     (is (= pack
@@ -20,7 +21,7 @@
     (is (= 1 (count (:packs seat))))))
 
 (deftest build-draft-test
-  (let [draft (core/build-draft small-cube [123 456])
+  (let [draft (draft/build-draft small-cube [123 456])
         first-seat (first (:seats draft))]
     (is (= 2 (count (:seats draft))))
     (is (= {:id 123 :picks []}
@@ -31,7 +32,7 @@
 
 (deftest pick-card-test
   ;; User 123 picks card 0
-  (let [after-pick (:draft (core/perform-pick small-draft 123 0))
+  (let [after-pick (:draft (draft/perform-pick small-draft 123 0))
         seats (:seats after-pick)
         first-seat (first seats)
         second-seat (second seats)]
@@ -43,9 +44,9 @@
 (deftest two-pick-card-test
   ;; User 123 picks card 0
   (let [after-picks (-> small-draft
-                        (core/perform-pick 123 0)
+                        (draft/perform-pick 123 0)
                         :draft
-                        (core/perform-pick 456 3)
+                        (draft/perform-pick 456 3)
                         :draft)
         seats (:seats after-picks)
         first-seat (first seats)
@@ -58,26 +59,26 @@
     (is (= 1 (-> second-seat :player :picks count)))))
 
 (deftest send-next-pack?-test
-  (let [picked-draft (:draft (core/perform-pick small-draft 123 0))]
-    (is (not (core/send-next-pack? picked-draft 123)))))
+  (let [picked-draft (:draft (draft/perform-pick small-draft 123 0))]
+    (is (not (draft/send-next-pack? picked-draft 123)))))
 
 (deftest send-neighbor-pack?-test
-  (let [picked-draft (:draft (core/perform-pick small-draft 123 0))
-        picked-back (:draft (core/perform-pick picked-draft 456 0))]
-    (is (not (core/send-neighbor-pack? picked-draft 123)))
-    (is (core/send-next-pack? picked-back 456))
-    (is (core/send-neighbor-pack? picked-back 456))))
+  (let [picked-draft (:draft (draft/perform-pick small-draft 123 0))
+        picked-back (:draft (draft/perform-pick picked-draft 456 0))]
+    (is (not (draft/send-neighbor-pack? picked-draft 123)))
+    (is (draft/send-next-pack? picked-back 456))
+    (is (draft/send-neighbor-pack? picked-back 456))))
 
 
 (deftest pick-results-test
-  (let [picked-draft (:draft (core/perform-pick small-draft 123 0))
-        {:keys [draft messages]} (core/perform-pick picked-draft 456 0)
-        expected-result [{:command :dm
+  (let [picked-draft (:draft (draft/perform-pick small-draft 123 0))
+        {:keys [draft messages]} (draft/perform-pick picked-draft 456 0)
+        expected-result [{:type :dm
                           :user-id 456
-                          :message (core/pack->text (rest (first (partition 15 small-cube))))}
-                         {:command :dm
+                          :content (draft/pack->text (rest (first (partition 15 small-cube))))}
+                         {:type :dm
                           :user-id 123
-                          :message (core/pack->text (rest (second (partition 15 small-cube))))}]
+                          :content (draft/pack->text (rest (second (partition 15 small-cube))))}]
         ]
     (is (= expected-result messages))))
 
@@ -86,13 +87,13 @@
 ;; Player 2 picks - message to 2
 ;; Player 3 picks - message to 3 and 1
 (deftest pick-results-test-3player
-  (let [one-pick-draft (:draft (core/perform-pick medium-draft 123 0))
-        two-pick-draft (:draft (core/perform-pick one-pick-draft 456 0))
-        {:keys [draft messages]}(core/perform-pick two-pick-draft 789 0)
-        expected-result [{:command :dm
+  (let [one-pick-draft (:draft (draft/perform-pick medium-draft 123 0))
+        two-pick-draft (:draft (draft/perform-pick one-pick-draft 456 0))
+        {:keys [draft messages]}(draft/perform-pick two-pick-draft 789 0)
+        expected-result [{:type :dm
                           :user-id 789
-                          :message (core/pack->text (rest (second (partition 15 medium-cube))))}
-                         {:command :dm
+                          :content (draft/pack->text (rest (second (partition 15 medium-cube))))}
+                         {:type :dm
                           :user-id 123
-                          :message (core/pack->text (rest (nth (partition 15 medium-cube) 2)))}]]
+                          :content (draft/pack->text (rest (nth (partition 15 medium-cube) 2)))}]]
     (is (= expected-result messages))))

@@ -76,21 +76,7 @@
         seat-idx (player-id->seat-idx user-id seats)]
     (assoc-in seats [seat-idx] updated-seat)))
 
-(defn perform-pick [draft user-id pick-number]
-  (let [seat (players-seat draft user-id)
-        player (:player seat)
-        pack (first (:packs seat))
-        pick (nth pack pick-number)
-        picked-pack (remove #(= pick %) pack)
-        next-seat (next-seat draft user-id)
-        updated-seat (-> seat
-                         (update :packs rest)
-                         (update-in [:player :picks] conj pick))
-        updated-next-seat (update next-seat :packs conj picked-pack)
-        updated-draft (-> draft
-                          (update :seats swap-seat updated-seat)
-                          (update :seats swap-seat updated-next-seat))]
-    updated-draft))
+
 
 (defn send-next-pack? [draft picking-user]
   (let [picking-seat (players-seat draft picking-user)]
@@ -122,12 +108,28 @@
 (defn send! [messages]
   )
 
-(defn handle-pick! [user-id pick-number]
-  (let [draft-update (perform-pick @*draft user-id pick-number)
-        results (pick-results draft-update user-id)]
-    (reset! *draft draft-update)
+(defn perform-pick [draft user-id pick-number]
+  (let [seat (players-seat draft user-id)
+        player (:player seat)
+        pack (first (:packs seat))
+        pick (nth pack pick-number)
+        picked-pack (remove #(= pick %) pack)
+        next-seat (next-seat draft user-id)
+        updated-seat (-> seat
+                         (update :packs rest)
+                         (update-in [:player :picks] conj pick))
+        updated-next-seat (update next-seat :packs conj picked-pack)
+        updated-draft (-> draft
+                          (update :seats swap-seat updated-seat)
+                          (update :seats swap-seat updated-next-seat))
+        resulting-messages (pick-results updated-draft user-id)]
+    {:draft updated-draft
+     :messages resulting-messages}))
 
-    (send-picks draft-update user-id)))
+(defn handle-pick! [user-id pick-number]
+  (let [{:keys [draft messages]} (perform-pick @*draft user-id pick-number)]
+    (reset! *draft draft)
+    (send! messages)))
 
 (defn handle-command! [^js message]
   (let [body (.-content message)

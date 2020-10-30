@@ -106,3 +106,18 @@
 (defn -main []
   (print "Starting bot...")
   (connect))
+
+
+;; TODO - to use locally:
+;; - Change vectors to lists?
+;; - Add reverse direction
+;; - Check all inputs so it doesn't crash
+;; - Allow 'newdraft' arguments to work
+;; - Add '[]picks' command
+;; - Add '[]help'
+
+;; TODO - Big Picture
+;; - Import cube tutor / cube cobra
+;; - Different drafts (id?)
+;; - Persistence
+;; - Hosting

@@ -35,7 +35,10 @@
   (let [seats (:seats draft)
         ids (mapv seat->player-id seats)
         seat-idx (.indexOf ids user-id)
-        next-seat-idx (mod (inc seat-idx) (count ids))]
+        player-count (count ids)
+        next-seat-idx (if (odd? (:pack-number draft))
+                        (mod (inc seat-idx) player-count)
+                        (mod (+ player-count (dec seat-idx)) player-count))]
     (get seats next-seat-idx)))
 
 (defn swap-seat [seats updated-seat]
@@ -49,7 +52,10 @@
 
 (defn send-neighbor-pack? [draft picking-user]
   (let [next-seat (next-seat draft picking-user)]
-    (= 1 (count (:packs next-seat)))))
+    ;; Has one pack and it has more than 1 card means we
+    ;; just passed that pack
+    (and (= 1 (-> next-seat :packs count))
+         (< 1 (-> next-seat :packs first count)))))
 
 
 (defn build-pack-message [seat]

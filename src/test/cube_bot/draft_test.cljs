@@ -4,6 +4,9 @@
             [cube-bot.cube :as cube]
             [cube-bot.draft :as draft]))
 
+(defonce test-cube (map str (range 200)))
+(defonce number-draft (draft/build-draft test-cube [123 456 789] 2 2))
+
 (defonce tiny-draft (draft/build-draft cube/combo [123 456 789] 1 2))
 
 (defonce small-cube (take 33 cube/combo))
@@ -158,7 +161,7 @@
              :content "The draft has ended!\nRespond with '[]picks' to view your picks."}]
            messages))))
 
-(deftest multiple-picks
+(deftest no-double-message-on-last-pick-test
   (let [{:keys [draft messages]} (-> (draft/build-draft cube/combo [123 456] 3 1)
                                      (draft/perform-pick 123 0)
                                      :draft
@@ -166,6 +169,25 @@
                                      :draft
                                      (draft/perform-pick 123 0)
                                      :draft
-                                     (draft/perform-pick 456 0))]
-    (print draft)
-    (print messages)))
+                                     (draft/perform-pick 456 0)
+                                     :draft
+                                     (draft/perform-pick 123 0))]
+    (is (empty? messages))))
+
+(deftest reverse-order-test
+  (let [draft (loop [d number-draft]
+                (if (draft/draft-done? d)
+                  d
+                  (recur (-> d
+                             (draft/perform-pick 123 0)
+                             :draft
+                             (draft/perform-pick 456 0)
+                             :draft
+                             (draft/perform-pick 789 0)
+                             :draft))))
+        first-player-picks (-> draft :seats first :player :picks)
+        second-player-picks (-> draft :seats second :player :picks)
+        third-player-picks (-> draft :seats (nth 2) :player :picks)]
+    (is (= ["0" "5" "6" "9"] first-player-picks))
+    (is (= ["2" "1" "8" "11"] second-player-picks))
+    (is (= ["4" "3" "10" "7"] third-player-picks))))

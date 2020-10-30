@@ -80,7 +80,7 @@
 (defn end-draft-message [seat]
   {:type :dm
    :user-id (-> seat :player :id)
-   :content "The draft has ended!\nRespond with '[]picks' to view your picks."})
+   :content (str "The draft has ended!\nYour picks are:\n" (-> seat :player :picks))})
 
 (defn end-draft-messages [draft]
   (map end-draft-message (:seats draft)))
@@ -103,6 +103,11 @@
       (-> draft
           (update :pack-number inc)
           (update :seats #(mapv set-seat-pack % packs))))))
+
+(defn player-picks [draft user-id]
+  (-> (players-seat draft user-id)
+      :player
+      :picks))
 
 (defn perform-pick [draft user-id pick-number]
   (let [seat (players-seat draft user-id)

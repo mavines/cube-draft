@@ -149,17 +149,7 @@
     (is (= 2 (count first-player-picks)))
     (is (= 2 (count second-player-picks)))
     (is (= 2 (count third-player-picks)))
-    (is (= 3 (count messages)))
-    (is (= [{:type :dm
-             :user-id 123
-             :content "The draft has ended!\nRespond with '[]picks' to view your picks."}
-            {:type :dm
-             :user-id 456
-             :content "The draft has ended!\nRespond with '[]picks' to view your picks."}
-            {:type :dm
-             :user-id 789
-             :content "The draft has ended!\nRespond with '[]picks' to view your picks."}]
-           messages))))
+    (is (= 3 (count messages)))))
 
 (deftest no-double-message-on-last-pick-test
   (let [{:keys [draft messages]} (-> (draft/build-draft cube/combo [123 456] 1 3)

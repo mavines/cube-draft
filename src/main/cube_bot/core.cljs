@@ -54,6 +54,15 @@
     (reset! *draft draft)
     (send! messages)))
 
+(defn show-picks-message [draft user-id]
+  (let [picks (draft/player-picks draft user-id)]
+    {:type :dm
+     :user-id user-id
+     :content (draft/pack->text picks)}))
+
+(defn handle-show-picks! [user-id]
+  (send-message! (show-picks-message @*draft user-id)))
+
 ;; Valids args are a cube ID
 ;; Optional number of packs and pack size
 (defn sanitize-start-draft-inputs [args]
@@ -63,20 +72,34 @@
        (remove #(> 0 %))
        (take 3)))
 
-(defn send-error! [^js message]
-  )
+(defn send-error! [user-id]
+  (send-message! {:type :dm
+                  :user-id user-id
+                  :content "An error occurred with your message, please try again."}))
+
+(defn send-help! [user-id]
+  (send-message! {:type :dm
+                  :user-id user-id
+                  :content
+                  "Commands:
+'[]pick n' - Pick card 'n' from your current pack.
+'[]picks' - Show your current picks."}))
 
 (defn handle-command! [^js message]
   (let [body (.-content message)
         command-string (subs body (count prefix))
         command-list (str/split command-string " ")
         command (first command-list)
-        args (rest command-list)]
+        args (rest command-list)
+        author-id (.. message -author -id)]
     (condp = command
       "newdraft" (if-let [draft-args (sanitize-start-draft-inputs args)]
                    (apply start-draft! (.. message -mentions -users keyArray) draft-args)
                    (print "send-start-help!"))
-      "pick" (handle-pick! (.. message -author -id) (js/parseInt (first args))))))
+      "pick" (handle-pick! author-id (js/parseInt (first args)))
+      "picks" (handle-show-picks! author-id)
+      "help" (send-help! author-id)
+      (send-help! author-id))))
 
 ;; Handle messages
 (defn message-handler [^js message]
@@ -87,7 +110,7 @@
         (handle-command! message)))
     (catch js/Error e
       (println "Error occurred: " e)
-      (send-error! message)))
+      (send-error! (.. message -author -id))))
 
   #_(if-not (= (.-author message) (.-user client))
     (cond
@@ -128,8 +151,6 @@
 
 ;; TODO - to use locally:
 ;; - Check all inputs so it doesn't crash
-;; - Allow 'newdraft' arguments to work
-;; - Add '[]picks' command
 ;; - Add '[]help'
 
 ;; TODO - Big Picture

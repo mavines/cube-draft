@@ -157,3 +157,15 @@
              :user-id 789
              :content "The draft has ended!\nRespond with '[]picks' to view your picks."}]
            messages))))
+
+(deftest multiple-picks
+  (let [{:keys [draft messages]} (-> (draft/build-draft cube/combo [123 456] 3 1)
+                                     (draft/perform-pick 123 0)
+                                     :draft
+                                     (draft/perform-pick 456 0)
+                                     :draft
+                                     (draft/perform-pick 123 0)
+                                     :draft
+                                     (draft/perform-pick 456 0))]
+    (print draft)
+    (print messages)))

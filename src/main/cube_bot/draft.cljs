@@ -106,7 +106,7 @@
         picked-pack (remove #(= pick %) pack)
         next-seat (next-seat draft user-id)
         updated-seat (-> seat
-                         (update :packs rest)
+                         (update :packs subvec 1)
                          (update-in [:player :picks] conj pick))
         updated-next-seat (update next-seat :packs
                                   #(cond-> % (not-empty picked-pack) (conj picked-pack)))

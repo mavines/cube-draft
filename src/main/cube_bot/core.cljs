@@ -60,7 +60,7 @@
         command (first command-list)
         args (rest command-list)]
     (condp = command
-      "newdraft" (start-draft! 0 (.. message -mentions -users keyArray) 3 3)
+      "newdraft" (start-draft! 0 (.. message -mentions -users keyArray) 3 1)
       "pick" (handle-pick! (.. message -author -id) (js/parseInt (first args))))))
 
 ;; Handle messages

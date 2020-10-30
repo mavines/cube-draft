@@ -7,10 +7,10 @@
 (defonce test-cube (map str (range 200)))
 (defonce number-draft (draft/build-draft test-cube [123 456 789] 2 2))
 
-(defonce tiny-draft (draft/build-draft cube/combo [123 456 789] 1 2))
+(defonce tiny-draft (draft/build-draft cube/combo [123 456 789] 2 1))
 
 (defonce small-cube (take 33 cube/combo))
-(defonce small-draft (draft/build-draft small-cube [123 456] 15 1))
+(defonce small-draft (draft/build-draft small-cube [123 456] 1 15))
 
 (defonce medium-cube (take 154 cube/combo))
 (defonce medium-draft (draft/build-draft medium-cube [123 456 789]))
@@ -162,7 +162,7 @@
            messages))))
 
 (deftest no-double-message-on-last-pick-test
-  (let [{:keys [draft messages]} (-> (draft/build-draft cube/combo [123 456] 3 1)
+  (let [{:keys [draft messages]} (-> (draft/build-draft cube/combo [123 456] 1 3)
                                      (draft/perform-pick 123 0)
                                      :draft
                                      (draft/perform-pick 456 0)

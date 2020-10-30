@@ -9,8 +9,8 @@
    :packs [pack]})
 
 (defn build-draft
-  ([cube user-ids] (build-draft cube user-ids 15 3))
-  ([cube user-ids pack-size num-packs]
+  ([cube user-ids] (build-draft cube user-ids 3 15))
+  ([cube user-ids num-packs pack-size]
    (let [player-count (count user-ids)
          packs (take (* num-packs player-count) (partition pack-size cube))
          starting-packs (take player-count packs)

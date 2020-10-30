@@ -41,10 +41,11 @@
     (send-message! message)))
 
 (defn start-draft!
-  ([cube-id user-ids] (start-draft! cube-id user-ids 15 3))
-  ([cube-id user-ids pack-size num-packs]
+  ([user-ids cube-id] (start-draft! user-ids cube-id 3 15))
+  ([user-ids cube-id num-packs] (start-draft! user-ids cube-id num-packs 15))
+  ([user-ids cube-id num-packs pack-size]
    (println "Starting draft: " user-ids)
-   (let [draft (draft/build-draft cube/combo user-ids pack-size num-packs)]
+   (let [draft (draft/build-draft cube/combo user-ids num-packs pack-size)]
      (reset! *draft draft)
      (mapv send-pack! (:seats @*draft)))))
 
@@ -53,6 +54,18 @@
     (reset! *draft draft)
     (send! messages)))
 
+;; Valids args are a cube ID
+;; Optional number of packs and pack size
+(defn sanitize-start-draft-inputs [args]
+  (->> args
+       (map js/parseInt)
+       (remove js/Number.isNaN)
+       (remove #(> 0 %))
+       (take 3)))
+
+(defn send-error! [^js message]
+  )
+
 (defn handle-command! [^js message]
   (let [body (.-content message)
         command-string (subs body (count prefix))
@@ -60,16 +73,21 @@
         command (first command-list)
         args (rest command-list)]
     (condp = command
-      "newdraft" (start-draft! 0 (.. message -mentions -users keyArray) 3 1)
+      "newdraft" (if-let [draft-args (sanitize-start-draft-inputs args)]
+                   (apply start-draft! (.. message -mentions -users keyArray) draft-args)
+                   (print "send-start-help!"))
       "pick" (handle-pick! (.. message -author -id) (js/parseInt (first args))))))
 
 ;; Handle messages
 (defn message-handler [^js message]
-  (reset! *debug-message message)
-  (let [body (.-content message)]
-    (when (and (not (.. message -author -bot))
-             (str/starts-with? body prefix))
-      (handle-command! message )))
+  (try
+    (let [body (.-content message)]
+      (when (and (not (.. message -author -bot))
+                 (str/starts-with? body prefix))
+        (handle-command! message)))
+    (catch js/Error e
+      (println "Error occurred: " e)
+      (send-error! message)))
 
   #_(if-not (= (.-author message) (.-user client))
     (cond
@@ -109,8 +127,6 @@
 
 
 ;; TODO - to use locally:
-;; - Change vectors to lists?
-;; - Add reverse direction
 ;; - Check all inputs so it doesn't crash
 ;; - Allow 'newdraft' arguments to work
 ;; - Add '[]picks' command

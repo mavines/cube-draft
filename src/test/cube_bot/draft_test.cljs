@@ -7,9 +7,9 @@
 (defonce tiny-draft (draft/build-draft cube/combo [123 456 789] 1 2))
 
 (defonce small-cube (take 33 cube/combo))
-(defonce small-draft (draft/build-draft small-cube [123 456]))
+(defonce small-draft (draft/build-draft small-cube [123 456] 15 1))
 
-(defonce medium-cube (take 86 cube/combo))
+(defonce medium-cube (take 154 cube/combo))
 (defonce medium-draft (draft/build-draft medium-cube [123 456 789]))
 
 (deftest build-seat-test
@@ -121,4 +121,39 @@
         first-player-packs (-> pack-2-draft :seats first :packs)
         second-player-packs (-> pack-2-draft :seats second :packs)
         third-player-packs (-> pack-2-draft :seats (nth 2) :packs)]
-    (is (= 2 (:pack-number pack-2-draft)))))
+    (is (= 2 (:pack-number pack-2-draft)))
+    (is (= 1 (count first-player-packs)))
+    (is (= 1 (count (first first-player-packs))))))
+
+(deftest end-draft-test
+  (let [pack-2-draft (-> tiny-draft
+                         (draft/perform-pick 123 0)
+                         :draft
+                         (draft/perform-pick 456 0)
+                         :draft
+                         (draft/perform-pick 789 0)
+                         :draft)
+        draft-over (-> pack-2-draft
+                       (draft/perform-pick 123 0)
+                       :draft
+                       (draft/perform-pick 456 0)
+                       :draft
+                       (draft/perform-pick 789 0))
+        first-player-picks (-> draft-over :draft :seats first :player :picks)
+        second-player-picks (-> draft-over :draft :seats second :player :picks)
+        third-player-picks (-> draft-over :draft :seats (nth 2) :player :picks)
+        messages (:messages draft-over)]
+    (is (= 2 (count first-player-picks)))
+    (is (= 2 (count second-player-picks)))
+    (is (= 2 (count third-player-picks)))
+    (is (= 3 (count messages)))
+    (is (= [{:type :dm
+             :user-id 123
+             :content "The draft has ended!\nRespond with '[]picks' to view your picks."}
+            {:type :dm
+             :user-id 456
+             :content "The draft has ended!\nRespond with '[]picks' to view your picks."}
+            {:type :dm
+             :user-id 789
+             :content "The draft has ended!\nRespond with '[]picks' to view your picks."}]
+           messages))))

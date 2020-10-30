@@ -13,6 +13,7 @@
   ([cube user-ids pack-size num-packs]
    (let [player-count (count user-ids)
          packs (take (* num-packs player-count) (partition pack-size cube))
+         starting-packs (take player-count packs)
          seats (mapv build-seat user-ids packs)]
      {:pack-number 1
       :num-packs num-packs
@@ -59,10 +60,43 @@
      :user-id user-id
      :content pack-string}))
 
+(defn packs-empty? [draft]
+  (->> draft
+       :seats
+       (map :packs)
+       (remove empty?)
+       empty?))
+
+(defn draft-done? [draft]
+  (and (packs-empty? draft)
+       (= (:pack-number draft) (:num-packs draft))))
+
+(defn end-draft-message [seat]
+  {:type :dm
+   :user-id (-> seat :player :id)
+   :content "The draft has ended!\nRespond with '[]picks' to view your picks."})
+
+(defn end-draft-messages [draft]
+  (map end-draft-message (:seats draft)))
+
 (defn pick-results [draft picking-user]
   (cond-> []
     (send-next-pack? draft picking-user) (conj (build-pack-message (players-seat draft picking-user)))
-    (send-neighbor-pack? draft picking-user) (conj (build-pack-message (next-seat draft picking-user)))))
+    (send-neighbor-pack? draft picking-user) (conj (build-pack-message (next-seat draft picking-user)))
+    (draft-done? draft) (concat (end-draft-messages draft))))
+
+(defn set-seat-pack [seat pack]
+  (update seat :packs conj pack))
+
+(defn next-pack [draft]
+  (if (= (:num-packs draft)
+         (:pack-number draft))
+    draft
+    (let [seats (:seats draft)
+          packs (take (count seats) (:remaining-packs draft))]
+      (-> draft
+          (update :pack-number inc)
+          (update :seats #(mapv set-seat-pack % packs))))))
 
 (defn perform-pick [draft user-id pick-number]
   (let [seat (players-seat draft user-id)
@@ -78,7 +112,8 @@
                                   #(cond-> % (not-empty picked-pack) (conj picked-pack)))
         updated-draft (-> draft
                           (update :seats swap-seat updated-seat)
-                          (update :seats swap-seat updated-next-seat))
+                          (update :seats swap-seat updated-next-seat)
+                          (#(if (packs-empty? %) (next-pack %) %)))
         resulting-messages (pick-results updated-draft user-id)]
     {:draft updated-draft
      :messages resulting-messages}))

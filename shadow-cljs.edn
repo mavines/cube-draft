@@ -4,8 +4,8 @@
   "src/main"
   "src/test"]
 
- :dependencies
- []
+ :dependencies [[cljs-http "0.1.46"]]
+
 
  :builds
  {:app {:target :node-script

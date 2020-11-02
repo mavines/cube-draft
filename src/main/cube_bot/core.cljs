@@ -2,6 +2,7 @@
   (:require ["discord.js" :as Discord]
             [clojure.string :as str]
             [clojure.pprint :refer [pprint]]
+            [cube-bot.cobra :as cobra]
             [cube-bot.config :as config]
             [cube-bot.cube :as cube]
             [cube-bot.draft :as draft]
@@ -44,10 +45,12 @@
   ([user-ids cube-id] (start-draft! user-ids cube-id 3 15))
   ([user-ids cube-id num-packs] (start-draft! user-ids cube-id num-packs 15))
   ([user-ids cube-id num-packs pack-size]
-   (println "Starting draft: " user-ids)
-   (let [draft (draft/build-draft cube/combo user-ids num-packs pack-size)]
-     (reset! *draft draft)
-     (mapv send-pack! (:seats @*draft)))))
+   (println "Starting draft: CubeID " cube-id " players: " user-ids)
+   (cobra/get-cube cube-id
+                   (fn [cube-list]
+                     (let [draft (draft/build-draft (shuffle cube-list) user-ids num-packs pack-size)]
+                       (reset! *draft draft)
+                       (mapv send-pack! (:seats @*draft)))))))
 
 (defn handle-pick! [user-id pick-number]
   (let [{:keys [draft messages]} (draft/perform-pick @*draft user-id pick-number)]
@@ -66,11 +69,13 @@
 ;; Valids args are a cube ID
 ;; Optional number of packs and pack size
 (defn sanitize-start-draft-inputs [args]
-  (->> args
-       (map js/parseInt)
-       (remove js/Number.isNaN)
-       (remove #(> 0 %))
-       (take 3)))
+  (let [cube-id (first args)]
+    (->> (rest args)
+         (map js/parseInt)
+         (remove js/Number.isNaN)
+         (remove #(> 0 %))
+         (take 2)
+         (#(conj % cube-id)))))
 
 (defn send-error! [user-id]
   (send-message! {:type :dm
@@ -90,11 +95,12 @@
         command-string (subs body (count prefix))
         command-list (str/split command-string " ")
         command (first command-list)
-        args (rest command-list)
+        player-ids (.. message -mentions -users keyArray)
+        args (drop (inc (count player-ids)) command-list)
         author-id (.. message -author -id)]
     (condp = command
       "newdraft" (if-let [draft-args (sanitize-start-draft-inputs args)]
-                   (apply start-draft! (.. message -mentions -users keyArray) draft-args)
+                   (apply start-draft! player-ids draft-args)
                    (print "send-start-help!"))
       "pick" (handle-pick! author-id (js/parseInt (first args)))
       "picks" (handle-show-picks! author-id)
@@ -151,7 +157,6 @@
 
 ;; TODO - to use locally:
 ;; - Check all inputs so it doesn't crash
-;; - Add '[]help'
 
 ;; TODO - Big Picture
 ;; - Import cube tutor / cube cobra

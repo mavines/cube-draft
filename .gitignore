@@ -12,6 +12,7 @@ pom.xml.asc
 *.iml
 *.jar
 *.log
+log.txt
 .shadow-cljs
 .idea
 .lein-*

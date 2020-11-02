@@ -4,7 +4,9 @@
   "src/main"
   "src/test"]
 
- :dependencies [[cljs-http "0.1.46"]]
+ :dependencies [[cljs-http "0.1.46"]
+                [cljs-node-io "1.1.2"]
+                [com.taoensso/timbre "5.1.0"]]
 
 
  :builds

@@ -6,7 +6,10 @@
             [cube-bot.config :as config]
             [cube-bot.cube :as cube]
             [cube-bot.draft :as draft]
-            [cube-bot.util :as util :refer [jsprint drop-nth]]))
+            [cube-bot.util :as util :refer [jsprint drop-nth]]
+            [taoensso.timbre.appenders.community.node-spit :as spitter]
+            [taoensso.timbre :as timbre
+             :refer-macros [log trace debug info warn error fatal report spy get-env]]))
 
 (defonce prefix "[]")
 (defonce *client (atom nil))
@@ -45,7 +48,7 @@
   ([user-ids cube-id] (start-draft! user-ids cube-id 3 15))
   ([user-ids cube-id num-packs] (start-draft! user-ids cube-id num-packs 15))
   ([user-ids cube-id num-packs pack-size]
-   (println "Starting draft: CubeID " cube-id " players: " user-ids)
+   (info "Starting draft: CubeID " cube-id " players: " user-ids)
    (cobra/get-cube cube-id
                    (fn [cube-list]
                      (let [draft (draft/build-draft (shuffle cube-list) user-ids num-packs pack-size)]
@@ -101,7 +104,7 @@
     (condp = command
       "newdraft" (if-let [draft-args (sanitize-start-draft-inputs args)]
                    (apply start-draft! player-ids draft-args)
-                   (print "send-start-help!"))
+                   (send-help! author-id))
       "pick" (handle-pick! author-id (js/parseInt (first args)))
       "picks" (handle-show-picks! author-id)
       "help" (send-help! author-id)
@@ -115,7 +118,7 @@
                  (str/starts-with? body prefix))
         (handle-command! message)))
     (catch js/Error e
-      (println "Error occurred: " e)
+      (error "Error occurred: " e)
       (send-error! (.. message -author -id))))
 
   #_(if-not (= (.-author message) (.-user client))
@@ -145,13 +148,20 @@
   (.login ^js @*client config/token))
 
 (defn ^:dev/after-load reload! []
-  (print "Code Reloaded")
+  (debug "Code Reloaded")
   (.destroy ^js @*client)
   (connect))
 
+(defn configure-logging [log-level]
+  (timbre/set-level! log-level)
+  (timbre/merge-config! {:appenders
+                         {:spit (spitter/node-spit-appender
+                                 {:fname "log.txt"
+                                  :append? true})}}))
 
 (defn -main []
-  (print "Starting bot...")
+  (configure-logging :debug)
+  (info "Starting bot...")
   (connect))
 
 

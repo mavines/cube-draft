@@ -151,6 +151,7 @@
     (is (= 2 (count third-player-picks)))
     (is (= 3 (count messages)))))
 
+
 (deftest no-double-message-on-last-pick-test
   (let [{:keys [draft messages]} (-> (draft/build-draft cube/combo [123 456] 1 3)
                                      (draft/perform-pick 123 0)

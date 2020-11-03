@@ -1,5 +1,8 @@
 (ns cube-bot.draft
-  (:require [clojure.string :as str]))
+  (:require [cube-bot.polyfills]
+            [clojure.string :as str]
+            [nano-id.core :refer [nano-id]]))
+
 
 (defn pack->text [pack]
   (str/join "\n" (map #(str %1 " - " %2) (range (count pack)) pack)))
@@ -15,7 +18,8 @@
          packs (take (* num-packs player-count) (partition pack-size cube))
          starting-packs (take player-count packs)
          seats (mapv build-seat user-ids packs)]
-     {:pack-number 1
+     {:draft-id (nano-id 6)
+      :pack-number 1
       :num-packs num-packs
       :remaining-packs (drop player-count packs)
       :seats seats})))

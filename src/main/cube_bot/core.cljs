@@ -16,13 +16,6 @@
 (defonce *client (atom nil))
 (defonce *debug-message (atom nil))
 
-;; {:pack-number 1
-;;  :remaining-packs [[cards in pack]]
-;;  :seats [
-;;    {:player {:id user-id :picks [card picks]
-;;     :packs [[cards in pack] [cards in pack]]}}]} Packs are a Queue
-(defonce *draft (atom nil))
-
 (defn send-dm! [message]
   (let [{:keys [user-id content]} message]
     (-> (.. ^js @*client -users -cache)
@@ -53,13 +46,20 @@
    (cobra/get-cube cube-id
                    (fn [cube-list]
                      (let [draft (draft/build-draft (shuffle cube-list) user-ids num-packs pack-size)]
-                       (reset! *draft draft)
-                       (mapv send-pack! (:seats @*draft)))))))
+                       (db/save-draft draft)
+                       (mapv send-pack! (:seats draft)))))))
 
-(defn handle-pick! [user-id pick-number]
-  (let [{:keys [draft messages]} (draft/perform-pick @*draft user-id pick-number)]
-    (reset! *draft draft)
-    (send! messages)))
+(defn handle-pick! [user-id draft-id pick-number]
+  (db/get-draft draft-id
+                (fn [err draft]
+                  (try
+                    (if err
+                      (error "Error getting draft: " err)
+                      (let [{:keys [draft messages]} (draft/perform-pick draft user-id pick-number)]
+                        (db/update-draft draft)
+                        (send! messages)))
+                    (catch js/Error e
+                      (error "Error occured picking: " e))))))
 
 (defn show-picks-message [draft user-id]
   (let [picks (draft/player-picks draft user-id)]
@@ -67,8 +67,10 @@
      :user-id user-id
      :content (draft/pack->text picks)}))
 
-(defn handle-show-picks! [user-id]
-  (send-message! (show-picks-message @*draft user-id)))
+(defn handle-show-picks! [user-id draft-id]
+  (db/get-draft draft-id
+                (fn [draft]
+                  (send-message! (show-picks-message draft user-id)))))
 
 ;; Valids args are a cube ID
 ;; Optional number of packs and pack size
@@ -91,8 +93,8 @@
                   :user-id user-id
                   :content
                   "Commands:
-'[]pick n' - Pick card 'n' from your current pack.
-'[]picks' - Show your current picks."}))
+'[]pick id n' - Pick card 'n' from your current pack in draft 'id'.
+'[]picks id' - Show your current picks in draft 'id'."}))
 
 (defn handle-command! [^js message]
   (let [body (.-content message)
@@ -102,12 +104,13 @@
         player-ids (.. message -mentions -users keyArray)
         args (drop (inc (count player-ids)) command-list)
         author-id (.. message -author -id)]
+    (debug "Command: " command " Args: " args)
     (condp = command
       "newdraft" (if-let [draft-args (sanitize-start-draft-inputs args)]
                    (apply start-draft! player-ids draft-args)
                    (send-help! author-id))
-      "pick" (handle-pick! author-id (js/parseInt (first args)))
-      "picks" (handle-show-picks! author-id)
+      "pick" (handle-pick! author-id (first args) (js/parseInt (second args)))
+      "picks" (handle-show-picks! (first args) author-id)
       "help" (send-help! author-id)
       (send-help! author-id))))
 
@@ -146,11 +149,13 @@
 (defn connect []
   (reset! *client (Discord/Client.))
   (.on ^js @*client "message" message-handler)
-  (.login ^js @*client config/token))
+  (.login ^js @*client config/token)
+  (db/connect db/url))
 
 (defn ^:dev/after-load reload! []
   (debug "Code Reloaded")
   (.destroy ^js @*client)
+  (db/disconnect)
   (connect))
 
 (defn configure-logging [log-level]

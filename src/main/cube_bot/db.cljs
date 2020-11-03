@@ -22,17 +22,24 @@
 (defn save-draft [draft]
   (when-let [^js db @*db]
     (let [^js drafts-collection (.collection db drafts)]
-      (.insert drafts-collection draft #(println %1 " " %2)))))
+      (.insert drafts-collection (clj->js draft) #(println %1 " " %2)))))
 
-(defn get-draft [id]
+(defn fix-draft [db-draft]
+  (-> db-draft
+      (update :num-packs js/parseInt)
+      (update :pack-number js/parseInt)))
+
+(defn get-draft [id callback]
   (when-let [^js db @*db]
     (let [^js drafts-collection (.collection db drafts)]
-      (.toArray (.find drafts-collection (clj->js {:draft-id "1234"})) #(println %1 " " %2)))))
+      (.findOne drafts-collection (clj->js {:draft-id id})
+                #(if (nil? %2)
+                   (callback (str "Error getting draft: " id) nil)
+                   (callback %1 (fix-draft (js->clj %2 :keywordize-keys true))))))))
 
-(defn update-draft [id]
+(defn update-draft [draft]
   (when-let [^js db @*db]
     (let [^js drafts-collection (.collection db drafts)]
-      (.updateOne drafts-collection
-                  (clj->js {:draft-id id})
-                  (clj->js {:$set {:name "My Draft Triple Updated"}})
-                  #(println %1 " " %2)))))
+      (.replaceOne drafts-collection
+                  (clj->js {:draft-id (:draft-id draft)})
+                  (clj->js draft)))))

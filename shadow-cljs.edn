@@ -14,7 +14,9 @@
  {:app {:target :node-script
         :output-to "target/main.js"
         :main cube-bot.core/-main
-        :devtools {:after-load cube-bot.core/reload!}}
+        :devtools {:after-load cube-bot.core/reload!}
+        :release {:compilter-options {:optimizations :simple}
+                  :output-to "release/main.js"}}
   :test {:target :node-test
          :output-to "target/test/test.js"
          :autorun true}}}

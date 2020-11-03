@@ -22,7 +22,7 @@
 (defn save-draft [draft]
   (when-let [^js db @*db]
     (let [^js drafts-collection (.collection db drafts)]
-      (.insert drafts-collection (clj->js draft) #(println %1 " " %2)))))
+      (.insertOne drafts-collection (clj->js draft)))))
 
 (defn fix-draft [db-draft]
   (-> db-draft

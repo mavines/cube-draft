@@ -29,6 +29,20 @@
 (defn send! [messages]
   (mapv send-message! messages))
 
+(defn send-error! [user-id]
+  (send-message! {:type :dm
+                  :user-id user-id
+                  :content "An error occurred with your message, please try again."}))
+
+(defn send-help! [user-id]
+  (send-message! {:type :dm
+                  :user-id user-id
+                  :content
+                  "Commands:
+'[]pick id n' - Pick card 'n' from your current pack in draft 'id'.
+'[]picks id' - Show your current picks in draft 'id'.
+'[]newdraft @xxx @yyy 'cube-id' 'packs' 'packsize' - Starts a new draft with the mentioned players, the CubeCobra cube matching the id, the given number of packs of the given size."}))
+
 (defn send-pack! [seat]
   (let [user-id (get-in seat [:player :id])
         pack (first (:packs seat))
@@ -44,22 +58,27 @@
   ([user-ids cube-id num-packs pack-size]
    (info "Starting draft: CubeID " cube-id " players: " user-ids)
    (cobra/get-cube cube-id
-                   (fn [cube-list]
-                     (let [draft (draft/build-draft (shuffle cube-list) user-ids num-packs pack-size)]
-                       (db/save-draft draft)
-                       (mapv send-pack! (:seats draft)))))))
+                   (fn [err cube-list]
+                     (if err
+                       (error "Error getting cube: " cube-id)
+                       (let [draft (draft/build-draft
+                                    (shuffle cube-list) user-ids num-packs pack-size)]
+                         (db/save-draft draft)
+                         (mapv send-pack! (:seats draft))))))))
 
 (defn handle-pick! [user-id draft-id pick-number]
   (db/get-draft draft-id
                 (fn [err draft]
                   (try
                     (if err
-                      (error "Error getting draft: " err)
+                      (do (error "Error getting draft: " err)
+                          (send-error! user-id))
                       (let [{:keys [draft messages]} (draft/perform-pick draft user-id pick-number)]
                         (db/update-draft draft)
                         (send! messages)))
                     (catch js/Error e
-                      (error "Error occured picking: " e))))))
+                      (error "Error occured picking: " e)
+                      (send-error! user-id))))))
 
 (defn show-picks-message [draft user-id]
   (let [picks (draft/player-picks draft user-id)]
@@ -83,18 +102,7 @@
          (take 2)
          (#(conj % cube-id)))))
 
-(defn send-error! [user-id]
-  (send-message! {:type :dm
-                  :user-id user-id
-                  :content "An error occurred with your message, please try again."}))
 
-(defn send-help! [user-id]
-  (send-message! {:type :dm
-                  :user-id user-id
-                  :content
-                  "Commands:
-'[]pick id n' - Pick card 'n' from your current pack in draft 'id'.
-'[]picks id' - Show your current picks in draft 'id'."}))
 
 (defn handle-command! [^js message]
   (let [body (.-content message)
@@ -175,7 +183,4 @@
 ;; - Check all inputs so it doesn't crash
 
 ;; TODO - Big Picture
-;; - Import cube tutor / cube cobra
-;; - Different drafts (id?)
-;; - Persistence
 ;; - Hosting

@@ -25,4 +25,6 @@
   (go (let [response (<! (http/get (str endpoint id) {:timeout 5000}))
             success? (:success response)
             cardnames (-> response :body :cardnames stringify-keys tree->words)]
-        (handler cardnames))))
+        (if success?
+          (handler nil cardnames)
+          (handler (str "Error fetching cube: " id) nil)))))

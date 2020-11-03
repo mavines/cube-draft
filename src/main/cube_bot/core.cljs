@@ -43,15 +43,6 @@
 '[]picks id' - Show your current picks in draft 'id'.
 '[]newdraft @xxx @yyy 'cube-id' 'packs' 'packsize' - Starts a new draft with the mentioned players, the CubeCobra cube matching the id, the given number of packs of the given size."}))
 
-(defn send-pack! [seat]
-  (let [user-id (get-in seat [:player :id])
-        pack (first (:packs seat))
-        pack-string (draft/pack->text pack)
-        message {:type :dm
-                 :user-id user-id
-                 :content pack-string}]
-    (send-message! message)))
-
 (defn start-draft!
   ([user-ids cube-id] (start-draft! user-ids cube-id 3 15))
   ([user-ids cube-id num-packs] (start-draft! user-ids cube-id num-packs 15))
@@ -64,7 +55,8 @@
                        (let [draft (draft/build-draft
                                     (shuffle cube-list) user-ids num-packs pack-size)]
                          (db/save-draft draft)
-                         (mapv send-pack! (:seats draft))))))))
+                         (send! (mapv #(draft/build-pack-message (:draft-id draft) %)
+                                      (:seats draft)))))))))
 
 (defn handle-pick! [user-id draft-id pick-number]
   (db/get-draft draft-id
@@ -84,12 +76,19 @@
   (let [picks (draft/player-picks draft user-id)]
     {:type :dm
      :user-id user-id
-     :content (draft/pack->text picks)}))
+     :content (str "Picks for draft: " (:draft-id draft) "\n" (draft/pack->text picks))}))
 
 (defn handle-show-picks! [user-id draft-id]
   (db/get-draft draft-id
-                (fn [draft]
-                  (send-message! (show-picks-message draft user-id)))))
+                (fn [err draft]
+                  (try
+                    (if err
+                      (do (error "Error getting draft: " err)
+                          (send-error! user-id))
+                      (send-message! (show-picks-message draft user-id)))
+                    (catch js/Error e
+                      (error "Error occured showing picks: " e)
+                      (send-error! user-id))))))
 
 ;; Valids args are a cube ID
 ;; Optional number of packs and pack size
@@ -101,7 +100,6 @@
          (remove #(> 0 %))
          (take 2)
          (#(conj % cube-id)))))
-
 
 
 (defn handle-command! [^js message]

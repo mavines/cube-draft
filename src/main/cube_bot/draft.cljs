@@ -62,13 +62,14 @@
          (< 1 (-> next-seat :packs first count)))))
 
 
-(defn build-pack-message [seat]
+(defn build-pack-message [draft-id seat]
   (let [user-id (get-in seat [:player :id])
         pack (first (:packs seat))
         pack-string (pack->text pack)]
     {:type :dm
      :user-id user-id
-     :content pack-string}))
+     :content (str "Make a pick for Draft: " draft-id "\n" pack-string
+                   "\n\n To Pick:  []pick " draft-id " n ")}))
 
 (defn packs-empty? [draft]
   (->> draft
@@ -91,8 +92,10 @@
 
 (defn pick-results [draft picking-user]
   (cond-> []
-    (send-next-pack? draft picking-user) (conj (build-pack-message (players-seat draft picking-user)))
-    (send-neighbor-pack? draft picking-user) (conj (build-pack-message (next-seat draft picking-user)))
+    (send-next-pack? draft picking-user) (conj (build-pack-message (:draft-id draft)
+                                                                   (players-seat draft picking-user)))
+    (send-neighbor-pack? draft picking-user) (conj (build-pack-message (:draft-id draft)
+                                                                       (next-seat draft picking-user)))
     (draft-done? draft) (concat (end-draft-messages draft))))
 
 (defn set-seat-pack [seat pack]

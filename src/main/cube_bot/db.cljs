@@ -33,9 +33,11 @@
   (when-let [^js db @*db]
     (let [^js drafts-collection (.collection db drafts)]
       (.findOne drafts-collection (clj->js {:draft-id id})
-                #(if (nil? %2)
-                   (callback (str "Error getting draft: " id) nil)
-                   (callback %1 (fix-draft (js->clj %2 :keywordize-keys true))))))))
+                (fn [err res]
+                  (cond
+                    (nil? res) (callback (str "Error getting draft: " id) nil)
+                    (some? err) (callback (str "Error getting draft: " id) nil)
+                    :else (callback err (fix-draft (js->clj res :keywordize-keys true)))))))))
 
 (defn update-draft [draft]
   (when-let [^js db @*db]

@@ -182,3 +182,10 @@
     (is (= ["0" "5" "6" "9"] first-player-picks))
     (is (= ["2" "1" "8" "11"] second-player-picks))
     (is (= ["4" "3" "10" "7"] third-player-picks))))
+
+(deftest last-pick-message
+  (let [{:keys [draft messages]} (-> (draft/build-draft cube/combo [123 456] 1 2)
+                                     (draft/perform-pick 123 0)
+                                     :draft
+                                     (draft/perform-pick 456 0))]
+    (is (= 2 (count  messages)))))

@@ -55,11 +55,12 @@
     (< 0 (count (:packs picking-seat)))))
 
 (defn send-neighbor-pack? [draft picking-user]
-  (let [next-seat (next-seat draft picking-user)]
-    ;; Has one pack and it has more than 1 card means we
-    ;; just passed that pack
+  (let [picking-seat (players-seat draft picking-user)
+        next-seat (next-seat draft picking-user)]
+    ;; Neighbor has a pack and we have a pack
+    ;; means we just passed the pack.
     (and (= 1 (-> next-seat :packs count))
-         (< 1 (-> next-seat :packs first count)))))
+         (<= 1 (-> picking-seat :packs count)))))
 
 
 (defn build-pack-message [draft-id seat]
@@ -85,10 +86,11 @@
 (defn end-draft-message [seat]
   {:type :dm
    :user-id (-> seat :player :id)
-   :content (str "The draft has ended!\nYour picks are:\n" (-> seat :player :picks))})
+   :content (str "The draft has ended!\nYour picks are:\n"
+                 (str/join "\n" (-> seat :player :picks)))})
 
 (defn end-draft-messages [draft]
-  (map end-draft-message (:seats draft)))
+  (mapv end-draft-message (:seats draft)))
 
 (defn pick-results [draft picking-user]
   (cond-> []
@@ -96,7 +98,7 @@
                                                                    (players-seat draft picking-user)))
     (send-neighbor-pack? draft picking-user) (conj (build-pack-message (:draft-id draft)
                                                                        (next-seat draft picking-user)))
-    (draft-done? draft) (concat (end-draft-messages draft))))
+    (draft-done? draft) (#(apply conj % (end-draft-messages draft)))))
 
 (defn set-seat-pack [seat pack]
   (update seat :packs conj pack))

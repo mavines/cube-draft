@@ -1,6 +1,6 @@
 (ns cube-bot.cobra
   (:require [cljs-http.client :as http]
-            [cljs.core.async :refer [<!]]
+            [cljs.core.async :as a :refer [<! >! go put! chan]]
             [clojure.walk :refer [stringify-keys]]
             [xmlhttprequest :refer [XMLHttpRequest]])
   (:require-macros [cljs.core.async.macros :refer [go]]))
@@ -21,10 +21,10 @@
   (flatten (map build-word tree)))
 
 
-(defn get-cube [id handler]
+(defn get-cube [id]
   (go (let [response (<! (http/get (str endpoint id) {:timeout 5000}))
             success? (:success response)
             cardnames (-> response :body :cardnames stringify-keys tree->words)]
         (if success?
-          (handler nil cardnames)
-          (handler (str "Error fetching cube: " id) nil)))))
+          cardnames
+          {:error (str "Error fetching cube" id)}))))

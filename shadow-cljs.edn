@@ -9,7 +9,6 @@
                 [nano-id "1.0.0"]
                 [com.taoensso/timbre "5.1.0"]]
 
-
  :builds
  {:app {:target :node-script
         :output-to "target/main.js"

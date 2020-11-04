@@ -2,7 +2,7 @@
   (:require ["discord.js" :as Discord]
             [clojure.string :as str]
             [clojure.pprint :refer [pprint]]
-            [cljs.core.async :as a :refer [<! >! go put! chan]]
+            [cljs.core.async :as a :refer [<! >! go put! take! chan to-chan!]]
             [cube-bot.cobra :as cobra]
             [cube-bot.config :as config]
             [cube-bot.cube :as cube]
@@ -24,54 +24,65 @@
         (.send content))))
 
 (defn send-message! [message]
+  (println message)
   (condp = (:type message)
     :dm (send-dm! message)))
 
 (defn send! [messages]
-  (mapv send-message! messages))
+  (if (vector? messages)
+    (mapv send-message! messages)
+    (send-message! messages)))
+
+(defn error-message [user-id]
+  {:type :dm
+   :user-id user-id
+   :content "An error occurred with your message, please try again."})
+
+(defn handle-error [text user-id]
+  (error text)
+  (error-message user-id))
 
 (defn send-error! [user-id]
-  (send-message! {:type :dm
-                  :user-id user-id
-                  :content "An error occurred with your message, please try again."}))
+  (send-message! (error-message user-id)))
 
-(defn send-help! [user-id]
-  (send-message! {:type :dm
-                  :user-id user-id
-                  :content
-                  "Commands:
+(defn help-message [user-id]
+  {:type :dm
+   :user-id user-id
+   :content
+   "Commands:
 '[]pick id n' - Pick card 'n' from your current pack in draft 'id'.
 '[]picks id' - Show your current picks in draft 'id'.
-'[]newdraft @xxx @yyy 'cube-id' 'packs' 'packsize' - Starts a new draft with the mentioned players, the CubeCobra cube matching the id, the given number of packs of the given size."}))
+'[]newdraft @xxx @yyy 'cube-id' 'packs' 'packsize' - Starts a new draft with the mentioned players, the CubeCobra cube matching the id, the given number of packs of the given size."})
+
+(defn send-help! [user-id]
+  (send-message! (help-message user-id)))
 
 (defn start-draft!
   ([user-ids cube-id] (start-draft! user-ids cube-id 3 15))
   ([user-ids cube-id num-packs] (start-draft! user-ids cube-id num-packs 15))
   ([user-ids cube-id num-packs pack-size]
    (info "Starting draft: CubeID " cube-id " players: " user-ids)
-   (cobra/get-cube cube-id
-                   (fn [err cube-list]
-                     (if err
-                       (error "Error getting cube: " cube-id)
-                       (let [draft (draft/build-draft
-                                    (shuffle cube-list) user-ids num-packs pack-size)]
-                         (db/save-draft draft)
-                         (send! (mapv #(draft/build-pack-message (:draft-id draft) %)
-                                      (:seats draft)))))))))
+   (go (let [cube (<! (cobra/get-cube cube-id))]
+         (if-let [err (:error cube)]
+           (handle-error (str "Error getting cube: " cube-id) (first user-ids))
+           (let [draft (draft/build-draft (shuffle cube) user-ids num-packs pack-size)
+                 save-status (db/save-draft draft)]
+             (if-let [err (:error save-status)]
+               (handle-error err (first user-ids))
+               (mapv #(draft/build-pack-message (:draft-id draft) %)
+                     (:seats draft)))))))))
 
 (defn handle-pick! [user-id draft-id pick-number]
-  (db/get-draft draft-id
-                (fn [err draft]
-                  (try
-                    (if err
-                      (do (error "Error getting draft: " err)
-                          (send-error! user-id))
-                      (let [{:keys [draft messages]} (draft/perform-pick draft user-id pick-number)]
-                        (db/update-draft draft)
-                        (send! messages)))
-                    (catch js/Error e
-                      (error "Error occured picking: " e)
-                      (send-error! user-id))))))
+  (if (js/Number.isNaN pick-number)
+    (handle-error "Must enter a card to pick" user-id)
+    (go (let [saved-draft (<! (db/get-draft draft-id))]
+          (if (:error saved-draft)
+            (error-message user-id)
+            (let [{:keys [draft messages]} (draft/perform-pick saved-draft user-id pick-number)
+                  update-status (<! (db/update-draft draft))]
+              (if-let [err (:error update-status)]
+                (handle-error err user-id)
+                messages)))))))
 
 (defn show-picks-message [draft user-id]
   (let [picks (draft/player-picks draft user-id)]
@@ -79,17 +90,11 @@
      :user-id user-id
      :content (str "Picks for draft: " (:draft-id draft) "\n" (draft/pack->text picks))}))
 
-(defn handle-show-picks! [user-id draft-id]
-  (db/get-draft draft-id
-                (fn [err draft]
-                  (try
-                    (if err
-                      (do (error "Error getting draft: " err)
-                          (send-error! user-id))
-                      (send-message! (show-picks-message draft user-id)))
-                    (catch js/Error e
-                      (error "Error occured showing picks: " e)
-                      (send-error! user-id))))))
+(defn handle-show-picks [user-id draft-id]
+  (go (let [draft (<! (db/get-draft draft-id))]
+        (if-let [err (:error draft)]
+          (handle-error err user-id)
+          (show-picks-message draft user-id)))))
 
 ;; Valids args are a cube ID
 ;; Optional number of packs and pack size
@@ -115,11 +120,11 @@
     (condp = command
       "newdraft" (if-let [draft-args (sanitize-start-draft-inputs args)]
                    (apply start-draft! player-ids draft-args)
-                   (send-help! author-id))
+                   (to-chan! [(help-message author-id)]))
       "pick" (handle-pick! author-id (first args) (js/parseInt (second args)))
-      "picks" (handle-show-picks! author-id (first args))
-      "help" (send-help! author-id)
-      (send-help! author-id))))
+      "picks" (handle-show-picks author-id (first args))
+      "help" (to-chan! [(help-message author-id)])
+      (to-chan! [(help-message author-id)]))))
 
 ;; Handle messages
 (defn message-handler [^js message]
@@ -127,7 +132,9 @@
     (let [body (.-content message)]
       (when (and (not (.. message -author -bot))
                  (str/starts-with? body prefix))
-        (handle-command! message)))
+        (let [result (handle-command! message)]
+          (take! result #(do (info "Result:" %)
+                             (send! %))))))
     (catch js/Error e
       (error "Error occurred: " e)
       (send-error! (.. message -author -id))))

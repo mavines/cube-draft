@@ -117,21 +117,30 @@
       :picks))
 
 (defn perform-pick [draft user-id pick-number]
-  (let [seat (players-seat draft user-id)
-        player (:player seat)
-        pack (first (:packs seat))
-        pick (nth pack pick-number)
-        picked-pack (remove #(= pick %) pack)
-        next-seat (next-seat draft user-id)
-        updated-seat (-> seat
-                         (update :packs subvec 1)
-                         (update-in [:player :picks] conj pick))
-        updated-next-seat (update next-seat :packs
-                                  #(cond-> % (not-empty picked-pack) (conj picked-pack)))
-        updated-draft (-> draft
-                          (update :seats swap-seat updated-seat)
-                          (update :seats swap-seat updated-next-seat)
-                          (#(if (packs-empty? %) (next-pack %) %)))
-        resulting-messages (pick-results updated-draft user-id)]
-    {:draft updated-draft
-     :messages resulting-messages}))
+  (let [seat (players-seat draft user-id)]
+    (if-let [pack (first (:packs seat))]
+      (if (>= pick-number (count pack))
+        {:draft draft
+         :messages [{:type :dm
+                     :user-id user-id
+                     :content "Not a valid card number."}]}
+        (let [player (:player seat)
+              pick (nth pack pick-number)
+              picked-pack (remove #(= pick %) pack)
+              next-seat (next-seat draft user-id)
+              updated-seat (-> seat
+                               (update :packs subvec 1)
+                               (update-in [:player :picks] conj pick))
+              updated-next-seat (update next-seat :packs
+                                        #(cond-> % (not-empty picked-pack) (conj picked-pack)))
+              updated-draft (-> draft
+                                (update :seats swap-seat updated-seat)
+                                (update :seats swap-seat updated-next-seat)
+                                (#(if (packs-empty? %) (next-pack %) %)))
+              resulting-messages (pick-results updated-draft user-id)]
+          {:draft updated-draft
+           :messages resulting-messages}))
+      {:draft draft
+       :messages [{:type :dm
+                   :user-id user-id
+                   :content "No Pick to make"}]})))

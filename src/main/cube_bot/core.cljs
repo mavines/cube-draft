@@ -2,6 +2,7 @@
   (:require ["discord.js" :as Discord]
             [clojure.string :as str]
             [clojure.pprint :refer [pprint]]
+            [cljs.core.async :as a :refer [<! >! go put! chan]]
             [cube-bot.cobra :as cobra]
             [cube-bot.config :as config]
             [cube-bot.cube :as cube]
@@ -116,7 +117,7 @@
                    (apply start-draft! player-ids draft-args)
                    (send-help! author-id))
       "pick" (handle-pick! author-id (first args) (js/parseInt (second args)))
-      "picks" (handle-show-picks! (first args) author-id)
+      "picks" (handle-show-picks! author-id (first args))
       "help" (send-help! author-id)
       (send-help! author-id))))
 
@@ -177,8 +178,5 @@
   (connect))
 
 
-;; TODO - to use locally:
+;; TODO
 ;; - Check all inputs so it doesn't crash
-
-;; TODO - Big Picture
-;; - Hosting

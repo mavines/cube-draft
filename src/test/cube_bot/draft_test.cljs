@@ -77,12 +77,12 @@
 (deftest pick-results-test
   (let [picked-draft (:draft (draft/perform-pick small-draft 123 0))
         {:keys [draft messages]} (draft/perform-pick picked-draft 456 0)
-        expected-result [{:type :dm
-                          :user-id 456
-                          :content (draft/pack->text (rest (first (partition 15 small-cube))))}
-                         {:type :dm
-                          :user-id 123
-                          :content (draft/pack->text (rest (second (partition 15 small-cube))))}]]
+        expected-result [(draft/build-pack-message
+                          (:draft-id draft)
+                          (draft/players-seat draft 456))
+                         (draft/build-pack-message
+                          (:draft-id draft)
+                          (draft/players-seat draft 123))]]
     (is (= expected-result messages))))
 
 ;; 3 players
@@ -93,12 +93,12 @@
   (let [one-pick-draft (:draft (draft/perform-pick medium-draft 123 0))
         two-pick-draft (:draft (draft/perform-pick one-pick-draft 456 0))
         {:keys [draft messages]}(draft/perform-pick two-pick-draft 789 0)
-        expected-result [{:type :dm
-                          :user-id 789
-                          :content (draft/pack->text (rest (second (partition 15 medium-cube))))}
-                         {:type :dm
-                          :user-id 123
-                          :content (draft/pack->text (rest (nth (partition 15 medium-cube) 2)))}]]
+        expected-result [(draft/build-pack-message
+                          (:draft-id draft)
+                          (draft/players-seat draft 789))
+                         (draft/build-pack-message
+                          (:draft-id draft)
+                          (draft/players-seat draft 123))]]
     (is (= expected-result messages))))
 
 

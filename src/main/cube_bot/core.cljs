@@ -9,6 +9,7 @@
             [cube-bot.db :as db]
             [cube-bot.draft :as draft]
             [cube-bot.util :as util :refer [jsprint drop-nth]]
+            [cube-bot.error :as e]
             [taoensso.timbre.appenders.community.node-spit :as spitter]
             [taoensso.timbre :as timbre
              :refer-macros [log trace debug info warn error fatal report spy get-env]]))

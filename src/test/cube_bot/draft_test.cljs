@@ -6,6 +6,7 @@
 
 (defonce test-cube (map str (range 200)))
 (defonce number-draft (draft/build-draft test-cube [123 456 789] 2 2))
+(defonce three-pack-draft (draft/build-draft test-cube [123 456 789] 3 2))
 
 (defonce tiny-draft (draft/build-draft cube/combo [123 456 789] 2 1))
 
@@ -189,3 +190,26 @@
                                      :draft
                                      (draft/perform-pick 456 0))]
     (is (= 2 (count  messages)))))
+
+(deftest out-of-bounds-pick
+  (let [result (-> (draft/build-draft cube/combo [123 456] 1 3)
+                   (draft/perform-pick 123 12))]
+    (is (= "Invalid card selected from pack" (:error result)))))
+
+(deftest pack-3-test
+  (let [draft (loop [d three-pack-draft]
+                (if (draft/draft-done? d)
+                  d
+                  (recur (-> d
+                             (draft/perform-pick 123 0)
+                             :draft
+                             (draft/perform-pick 456 0)
+                             :draft
+                             (draft/perform-pick 789 0)
+                             :draft))))
+        first-player-picks (-> draft :seats first :player :picks)
+        second-player-picks (-> draft :seats second :player :picks)
+        third-player-picks (-> draft :seats (nth 2) :player :picks)]
+    (is (= ["0" "5" "6" "9" "12" "17"] first-player-picks))
+    (is (= ["2" "1" "8" "11" "14" "13"] second-player-picks))
+    (is (= ["4" "3" "10" "7" "16" "15"] third-player-picks))))

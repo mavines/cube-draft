@@ -1,5 +1,6 @@
 (ns cube-bot.draft
   (:require [cube-bot.polyfills]
+            [cube-bot.macros :refer [error-let]]
             [clojure.string :as str]
             [nano-id.core :refer [nano-id]]))
 
@@ -111,7 +112,8 @@
           packs (take (count seats) (:remaining-packs draft))]
       (-> draft
           (update :pack-number inc)
-          (update :seats #(mapv set-seat-pack % packs))))))
+          (update :seats #(mapv set-seat-pack % packs))
+          (update :remaining-packs #(drop (count seats) %))))))
 
 (defn player-picks [draft user-id]
   (-> (players-seat draft user-id)
@@ -119,30 +121,23 @@
       :picks))
 
 (defn perform-pick [draft user-id pick-number]
-  (let [seat (players-seat draft user-id)]
-    (if-let [pack (first (:packs seat))]
-      (if (>= pick-number (count pack))
-        {:draft draft
-         :messages [{:type :dm
-                     :user-id user-id
-                     :content "Not a valid card number."}]}
-        (let [player (:player seat)
-              pick (nth pack pick-number)
-              picked-pack (remove #(= pick %) pack)
-              next-seat (next-seat draft user-id)
+  (error-let [seat (players-seat draft user-id) {:error "Player not found in draft."}
+              pack (first (:packs seat)) {:error "No pack found for player"}
+              player (:player seat) {:error"Player not found in seat"}
+              valid-pick (< pick-number (count pack)) {:error "Invalid card selected from pack"}
+              pick (nth pack pick-number) {:error "Invalid card selected from pack"}
+              picked-pack (remove #(= pick %) pack) {:error "Failed picking a card"}
+              next-seat (next-seat draft user-id) {:error "Cannot find the next player"}
               updated-seat (-> seat
                                (update :packs subvec 1)
-                               (update-in [:player :picks] conj pick))
+                               (update-in [:player :picks] conj pick)) {:error "Unable to update the seat"}
               updated-next-seat (update next-seat :packs
-                                        #(cond-> % (not-empty picked-pack) (conj picked-pack)))
+                                        #(cond-> % (not-empty picked-pack)
+                                                 (conj picked-pack))) {:error "Unable to update next seat"}
               updated-draft (-> draft
                                 (update :seats swap-seat updated-seat)
                                 (update :seats swap-seat updated-next-seat)
-                                (#(if (packs-empty? %) (next-pack %) %)))
-              resulting-messages (pick-results updated-draft user-id)]
-          {:draft updated-draft
-           :messages resulting-messages}))
-      {:draft draft
-       :messages [{:type :dm
-                   :user-id user-id
-                   :content "No Pick to make"}]})))
+                                (#(if (packs-empty? %) (next-pack %) %))) {:error "Unable to update the draft"}
+              resulting-messages (pick-results updated-draft user-id) {:error "Error getting messages"}]
+             {:draft updated-draft
+              :messages resulting-messages}))

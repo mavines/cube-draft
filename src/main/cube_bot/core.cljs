@@ -8,6 +8,7 @@
             [cube-bot.cube :as cube]
             [cube-bot.db :as db]
             [cube-bot.draft :as draft]
+            [cube-bot.macros :refer [error-let]]
             [cube-bot.util :as util :refer [jsprint drop-nth]]
             [cube-bot.error :as e]
             [taoensso.timbre.appenders.community.node-spit :as spitter]
@@ -41,7 +42,9 @@
 
 (defn handle-error [text user-id]
   (error text)
-  (error-message user-id))
+  {:type :dm
+   :user-id user-id
+   :content text})
 
 (defn send-error! [user-id]
   (send-message! (error-message user-id)))
@@ -79,11 +82,13 @@
     (go (let [saved-draft (<! (db/get-draft draft-id))]
           (if (:error saved-draft)
             (error-message user-id)
-            (let [{:keys [draft messages]} (draft/perform-pick saved-draft user-id pick-number)
-                  update-status (<! (db/update-draft draft))]
-              (if-let [err (:error update-status)]
+            (let [pick-result (draft/perform-pick saved-draft user-id pick-number)]
+              (if-let [err (:error pick-result)]
                 (handle-error err user-id)
-                messages)))))))
+                (let [update-status (<! (db/update-draft (:draft pick-result)))]
+                  (if-let [err (:error update-status)]
+                    (handle-error err user-id)
+                    (:messages pick-result))))))))))
 
 (defn show-picks-message [draft user-id]
   (let [picks (draft/player-picks draft user-id)]

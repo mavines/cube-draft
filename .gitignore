@@ -1,6 +1,5 @@
 node_modules/
 public/js
-src/main/config.cljs
 settings.txt
 
 

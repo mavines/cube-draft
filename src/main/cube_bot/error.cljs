@@ -2,7 +2,8 @@
   (:require [cljs.core :as core]
             [cljs.core.async :as a :refer [<! >! go put! take! chan]]
             [cube-bot.draft :as draft :refer [players-seat next-seat pick-results swap-seat next-pack packs-empty?]]
-            [cube-bot.macros :as macros :refer-macros [else-let error-let]]))
+            [cube-bot.macros :as macros :refer-macros [else-let error-let nil-error]]
+            [merr.core :as merr :include-macros true]))
 
 (defn perform-pick [draft user-id pick-number]
   (let [seat (players-seat draft user-id)]
@@ -95,6 +96,16 @@
 
 (def nums [1 2 3 4 5 6 7 8 9])
 
+(defn pick-merr [draft]
+  (merr/let err [seat (nil-error (:seat draft) "seat nil")
+                 player (nil-error (:player seat) "player nil")]
+            (if err
+              err
+              player)))
+
+(pick-merr {:seat nil})
+
+(nil-error nil "NIL")
 
 (reduce (fn [inner cur]
           (let [form (first cur)

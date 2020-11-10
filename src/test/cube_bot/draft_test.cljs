@@ -78,7 +78,8 @@
 (deftest pick-results-test
   (let [picked-draft (:draft (draft/perform-pick small-draft 123 0))
         {:keys [draft messages]} (draft/perform-pick picked-draft 456 0)
-        expected-result [(draft/build-pack-message
+        expected-result [(draft/picked-message 456)
+                         (draft/build-pack-message
                           (:draft-id draft)
                           (draft/players-seat draft 456))
                          (draft/build-pack-message
@@ -87,14 +88,15 @@
     (is (= expected-result messages))))
 
 ;; 3 players
-;; Player 1 picks - no messages
-;; Player 2 picks - message to 2
-;; Player 3 picks - message to 3 and 1
+;; Player 1 picks - message to 1
+;; Player 2 picks - 2 messages to 2
+;; Player 3 picks - 2 to player 3 and 1 to player 2
 (deftest pick-results-test-3player
   (let [one-pick-draft (:draft (draft/perform-pick medium-draft 123 0))
         two-pick-draft (:draft (draft/perform-pick one-pick-draft 456 0))
-        {:keys [draft messages]}(draft/perform-pick two-pick-draft 789 0)
-        expected-result [(draft/build-pack-message
+        {:keys [draft messages]} (draft/perform-pick two-pick-draft 789 0)
+        expected-result [(draft/picked-message 789)
+                         (draft/build-pack-message
                           (:draft-id draft)
                           (draft/players-seat draft 789))
                          (draft/build-pack-message
@@ -150,7 +152,7 @@
     (is (= 2 (count first-player-picks)))
     (is (= 2 (count second-player-picks)))
     (is (= 2 (count third-player-picks)))
-    (is (= 3 (count messages)))))
+    (is (= 4 (count messages)))))
 
 
 (deftest no-double-message-on-last-pick-test
@@ -164,7 +166,7 @@
                                      (draft/perform-pick 456 0)
                                      :draft
                                      (draft/perform-pick 123 0))]
-    (is (empty? messages))))
+    (is (= 1 (count messages)))))
 
 (deftest reverse-order-test
   (let [draft (loop [d number-draft]
@@ -189,7 +191,7 @@
                                      (draft/perform-pick 123 0)
                                      :draft
                                      (draft/perform-pick 456 0))]
-    (is (= 2 (count  messages)))))
+    (is (= 3 (count  messages)))))
 
 (deftest out-of-bounds-pick
   (let [result (-> (draft/build-draft cube/combo [123 456] 1 3)
@@ -213,3 +215,13 @@
     (is (= ["0" "5" "6" "9" "12" "17"] first-player-picks))
     (is (= ["2" "1" "8" "11" "14" "13"] second-player-picks))
     (is (= ["4" "3" "10" "7" "16" "15"] third-player-picks))))
+
+
+(defonce four-player-draft (draft/build-draft cube/combo [123 456 789 "abc"] 3 15))
+
+(deftest four-player
+  (let [{:keys [draft messages]} (-> four-player-draft
+                                     (draft/perform-pick "abc" 0)
+                                     :draft
+                                     (draft/perform-pick 123 0))]
+    (is (= 2 (count messages)))))

@@ -26,7 +26,7 @@
         (.send content))))
 
 (defn send-message! [message]
-  (println message)
+  (debug message)
   (condp = (:type message)
     :dm (send-dm! message)))
 
@@ -122,7 +122,7 @@
         player-ids (.. message -mentions -users keyArray)
         args (drop (inc (count player-ids)) command-list)
         author-id (.. message -author -id)]
-    (debug "Command: " command " Args: " args)
+    (debug "User:" author-id " Command: " command " Args: " args)
     (condp = command
       "newdraft" (if-let [draft-args (sanitize-start-draft-inputs args)]
                    (apply start-draft! player-ids draft-args)

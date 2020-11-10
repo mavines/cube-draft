@@ -2,7 +2,7 @@
   (:require [cube-bot.polyfills]
             [cube-bot.macros :refer [error-let]]
             [clojure.string :as str]
-            [nano-id.core :refer [nano-id]]))
+            [nano-id.core :refer [nano-id custom]]))
 
 
 (defn pack->text [pack]
@@ -12,6 +12,8 @@
   {:player {:id user-id :picks []}
    :packs [pack]})
 
+(def alpha-id (custom "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz" 6))
+
 (defn build-draft
   ([cube user-ids] (build-draft cube user-ids 3 15))
   ([cube user-ids num-packs pack-size]
@@ -19,7 +21,7 @@
          packs (take (* num-packs player-count) (partition pack-size cube))
          starting-packs (take player-count packs)
          seats (mapv build-seat user-ids packs)]
-     {:draft-id (nano-id 6)
+     {:draft-id (alpha-id)
       :pack-number 1
       :num-packs num-packs
       :remaining-packs (drop player-count packs)
@@ -71,7 +73,8 @@
     {:type :dm
      :user-id user-id
      :content (str "Make a pick for Draft: " draft-id "\n" pack-string
-                   "\n\n To Pick:  []pick " draft-id " n ")}))
+                   "\n\n To Pick:  []pick " draft-id " cardnumber "
+                   "\n\n View Picks: []picks " draft-id)}))
 
 (defn packs-empty? [draft]
   (->> draft
@@ -93,8 +96,13 @@
 (defn end-draft-messages [draft]
   (mapv end-draft-message (:seats draft)))
 
+(defn picked-message [user-id]
+  {:type :dm
+   :user-id user-id
+   :content "Thank you for your pick!"})
+
 (defn pick-results [draft picking-user]
-  (cond-> []
+  (cond-> [(picked-message picking-user)]
     (send-next-pack? draft picking-user) (conj (build-pack-message (:draft-id draft)
                                                                    (players-seat draft picking-user)))
     (send-neighbor-pack? draft picking-user) (conj (build-pack-message (:draft-id draft)

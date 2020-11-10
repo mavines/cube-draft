@@ -1,4 +1,5 @@
-(ns cube-bot.macros)
+(ns cube-bot.macros
+  (:require [merr.core :as merr]))
 
 (defmacro else-let
   "bindings => binding-form test
@@ -27,3 +28,9 @@
                    ~err))))
           then
           (reverse (partition 3 bindings))))
+
+(defmacro nil-error [test message]
+  `(let [temp# ~test]
+     (if temp#
+       temp#
+       (merr/err {:message ~message}))))

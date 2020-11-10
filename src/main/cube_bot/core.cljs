@@ -21,9 +21,9 @@
 
 (defn send-dm! [message]
   (let [{:keys [user-id content]} message]
-    (-> (.. ^js @*client -users -cache)
-        (.get user-id)
-        (.send content))))
+    (-> (.. ^js @*client -users)
+        (.fetch user-id true)
+        (.then #(.send % content)))))
 
 (defn send-message! [message]
   (debug message)
@@ -83,6 +83,7 @@
           (if (:error saved-draft)
             (error-message user-id)
             (let [pick-result (draft/perform-pick saved-draft user-id pick-number)]
+              (debug "Pick result: " pick-result)
               (if-let [err (:error pick-result)]
                 (handle-error err user-id)
                 (let [update-status (<! (db/update-draft (:draft pick-result)))]
@@ -113,9 +114,8 @@
          (take 2)
          (#(conj % cube-id)))))
 
-
 (defn handle-command! [^js message]
-  (let [body (.-content message)
+  (let [body (str/trim (.-content message))
         command-string (subs body (count prefix))
         command-list (str/split command-string " ")
         command (first command-list)
@@ -139,7 +139,7 @@
       (when (and (not (.. message -author -bot))
                  (str/starts-with? body prefix))
         (let [result (handle-command! message)]
-          (take! result #(do (info "Result:" %)
+          (take! result #(do (debug "Result:" %)
                              (send! %))))))
     (catch js/Error e
       (error "Error occurred: " e)

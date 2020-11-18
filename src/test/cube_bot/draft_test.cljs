@@ -191,7 +191,7 @@
                                      (draft/perform-pick 123 0)
                                      :draft
                                      (draft/perform-pick 456 0))]
-    (is (= 3 (count  messages)))))
+    (is (= 3 (count messages)))))
 
 (deftest out-of-bounds-pick
   (let [result (-> (draft/build-draft cube/combo [123 456] 1 3)
@@ -217,11 +217,18 @@
     (is (= ["4" "3" "10" "7" "16" "15"] third-player-picks))))
 
 
-(defonce four-player-draft (draft/build-draft cube/combo [123 456 789 "abc"] 3 15))
+(defonce four-player-draft (draft/build-draft cube/combo [123 456 789 "abc"] 3 1))
 
-(deftest four-player
+
+;; Should get Thank you message
+;; and 4 Pack messages, one for each player.
+(deftest four-player-next-pack
   (let [{:keys [draft messages]} (-> four-player-draft
                                      (draft/perform-pick "abc" 0)
                                      :draft
-                                     (draft/perform-pick 123 0))]
-    (is (= 2 (count messages)))))
+                                     (draft/perform-pick 123 0)
+                                     :draft
+                                     (draft/perform-pick 456 0)
+                                     :draft
+                                     (draft/perform-pick 789 0))]
+    (is (= 5 (count messages)))))

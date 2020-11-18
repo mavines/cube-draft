@@ -22,6 +22,7 @@
          starting-packs (take player-count packs)
          seats (mapv build-seat user-ids packs)]
      {:draft-id (alpha-id)
+      :pack-size pack-size
       :pack-number 1
       :num-packs num-packs
       :remaining-packs (drop player-count packs)
@@ -57,13 +58,17 @@
   (let [picking-seat (players-seat draft picking-user)]
     (< 0 (count (:packs picking-seat)))))
 
+(defn last-pick [picking-seat next-seat]
+  (= (+ (-> next-seat :packs count) (-> next-seat :player :picks count))
+     (-> picking-seat :player :picks count)))
+
 (defn send-neighbor-pack? [draft picking-user]
   (let [picking-seat (players-seat draft picking-user)
         next-seat (next-seat draft picking-user)]
-    ;; Neighbor has a pack and we have a pack
-    ;; means we just passed the pack.
+    ;; Neighbor has one pack means we just passed it
+    ;; Unless it was the last pick of the pack.
     (and (= 1 (-> next-seat :packs count))
-         (<= 1 (-> picking-seat :packs count)))))
+         (not (last-pick picking-seat next-seat)))))
 
 
 (defn build-pack-message [draft-id seat]
@@ -101,13 +106,22 @@
    :user-id user-id
    :content "Thank you for your pick!"})
 
+(defn new-pack? [draft]
+  (let [pack-sizes (map #(-> % :packs first count) (:seats draft))]
+    (apply = (:pack-size draft) pack-sizes)))
+
+(defn all-pack-messages [draft]
+  (map (partial build-pack-message (:draft-id draft)) (:seats draft)))
+
 (defn pick-results [draft picking-user]
   (cond-> [(picked-message picking-user)]
     (send-next-pack? draft picking-user) (conj (build-pack-message (:draft-id draft)
                                                                    (players-seat draft picking-user)))
     (send-neighbor-pack? draft picking-user) (conj (build-pack-message (:draft-id draft)
                                                                        (next-seat draft picking-user)))
-    (draft-done? draft) (#(apply conj % (end-draft-messages draft)))))
+    (draft-done? draft) (#(apply conj % (end-draft-messages draft)))
+    (new-pack? draft) (#(apply conj % (all-pack-messages draft)))
+    true distinct))
 
 (defn set-seat-pack [seat pack]
   (update seat :packs conj pack))

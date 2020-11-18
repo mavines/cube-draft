@@ -117,12 +117,12 @@
 (defn handle-command! [^js message]
   (let [body (str/trim (.-content message))
         command-string (subs body (count prefix))
-        command-list (str/split command-string " ")
+        command-list (str/split command-string #" "+)
         command (first command-list)
         player-ids (.. message -mentions -users keyArray)
         args (drop (inc (count player-ids)) command-list)
         author-id (.. message -author -id)]
-    (debug "User:" author-id " Command: " command " Args: " args)
+    (debug "Author" author-id "Command:" command "Args:" args)
     (condp = command
       "newdraft" (if-let [draft-args (sanitize-start-draft-inputs args)]
                    (apply start-draft! player-ids draft-args)
